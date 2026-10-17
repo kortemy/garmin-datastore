@@ -94,7 +94,8 @@ def main() -> None:
             n_tools = len(listed.json()["result"]["tools"]) if listed.status_code == 200 else 0
             check(n_tools == 16, "MCP tools/list with bearer")
             args = {"fields": ["readiness_score", "sleep_score"]}
-            called = mcp_call(c, tokens["access_token"], "tools/call", {"name": "get_daily_wellness", "arguments": args})
+            called = mcp_call(c, tokens["access_token"], "tools/call",
+                              {"name": "get_daily_wellness", "arguments": args})
             body = called.json()["result"]
             check(called.status_code == 200 and not body.get("isError"), "get_daily_wellness via OAuth")
             print("     ", str(body.get("structuredContent", body))[:160])
