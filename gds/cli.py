@@ -2,6 +2,8 @@
 
     uv run python -m gds.cli setup    # secrets: .env, Vercel env vars, Supabase Vault
     uv run python -m gds.cli auth     # one-time Garmin login, stores an encrypted token
+    uv run python -m gds.cli call spike/garmin --base https://<app>.vercel.app
+    uv run python -m gds.cli connector-url --base https://<app>.vercel.app
 
 Secrets are typed into hidden prompts or generated locally. They are never printed.
 """
@@ -147,6 +149,39 @@ def cmd_auth(_: argparse.Namespace) -> None:
         print(f"Access token valid until {expiry:%Y-%m-%d %H:%M} UTC (refreshes automatically).")
 
 
+def _base_url(args: argparse.Namespace) -> str:
+    base = args.base or os.environ.get("GDS_BASE_URL", "")
+    if not base:
+        sys.exit("Pass --base https://<your-app>.vercel.app or set GDS_BASE_URL.")
+    return base.rstrip("/")
+
+
+def cmd_call(args: argparse.Namespace) -> None:
+    """POST to a secret-protected endpoint of the deployed app and print the JSON reply."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    load_env_into_process()
+    url = f"{_base_url(args)}/api/{args.path.lstrip('/')}"
+    req = urllib.request.Request(
+        url,
+        data=(args.body or "{}").encode(),
+        method="POST",
+        headers={"Content-Type": "application/json", "X-GDS-Secret": os.environ["TICK_SECRET"]},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            print(json.dumps(json.loads(resp.read()), indent=2, default=str))
+    except urllib.error.HTTPError as e:
+        sys.exit(f"HTTP {e.code}: {e.read().decode(errors='replace')[:500]}")
+
+
+def cmd_connector_url(args: argparse.Namespace) -> None:
+    load_env_into_process()
+    print(f"{_base_url(args)}/s/{os.environ['MCP_PATH_SECRET']}/mcp")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="gds")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -155,6 +190,14 @@ def main() -> None:
     p_setup.add_argument("--team", default=None, help="Vercel team slug (optional)")
     p_setup.set_defaults(func=cmd_setup)
     sub.add_parser("auth", help="one-time Garmin login").set_defaults(func=cmd_auth)
+    p_call = sub.add_parser("call", help="POST to a protected endpoint, e.g. `call spike/garmin`")
+    p_call.add_argument("path")
+    p_call.add_argument("--body", default=None, help="JSON body")
+    p_call.add_argument("--base", default=None, help="deployed app URL (or GDS_BASE_URL)")
+    p_call.set_defaults(func=cmd_call)
+    p_url = sub.add_parser("connector-url", help="print the Claude connector URL (contains a secret)")
+    p_url.add_argument("--base", default=None, help="deployed app URL (or GDS_BASE_URL)")
+    p_url.set_defaults(func=cmd_connector_url)
     args = parser.parse_args()
     args.func(args)
 

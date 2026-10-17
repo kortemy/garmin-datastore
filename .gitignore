@@ -31,3 +31,7 @@ scratch/
 Thumbs.db
 .idea/
 .vscode/
+
+.vercel
+.env*
+!.env.example
