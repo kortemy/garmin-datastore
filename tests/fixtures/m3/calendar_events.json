@@ -1,0 +1,49 @@
+[
+ {
+  "id": 27955483,
+  "groupId": null,
+  "eventName": "Test Event",
+  "date": "2026-09-05",
+  "courseId": null,
+  "completionTarget": {
+   "value": 10000.0,
+   "unit": "meter",
+   "unitType": "distance"
+  },
+  "eventTimeLocal": {
+   "startTimeHhMm": "18:00",
+   "timeZoneId": "Europe/Paris"
+  },
+  "note": null,
+  "workoutId": null,
+  "eventImageUUID": null,
+  "locationStartPoint": null,
+  "eventType": "running",
+  "eventPrivacy": {
+   "label": "PUBLIC_SHAREABLE",
+   "isShareable": true,
+   "isDiscoverable": false
+  },
+  "shareableEventUuid": "e023b889-b4ed-4060-82a4-1ba39a40deb0",
+  "eventCustomization": {
+   "customGoal": {
+    "value": 3600.0,
+    "unit": "second",
+    "unitType": "time"
+   },
+   "isPrimaryEvent": false,
+   "associatedWithActivityId": 24250183400,
+   "isTrainingEvent": false,
+   "isGoalMet": false,
+   "trainingPlanId": null,
+   "trainingPlanType": null,
+   "enrollmentTime": "2026-08-03T00:57:59.850"
+  },
+  "provider": "ahotu",
+  "eventRef": "132570-1019447",
+  "statuses": null,
+  "eventOrganizer": false,
+  "race": false,
+  "subscribed": true
+ }
+]

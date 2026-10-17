@@ -1,0 +1,19 @@
+[
+ {
+  "uuid": "75e7fa0a-d984-4773-87ee-b2f27a993ea1",
+  "gearType": "SHOES",
+  "status": "ACTIVE",
+  "brand": "ASICS",
+  "model": "Novablast 6",
+  "usageType": "DISTANCE",
+  "maxUsageDistanceMeters": 500000.0,
+  "maxUsageDurationSeconds": 0,
+  "firstUseDate": "2026-08-24",
+  "numActivitiesLinked": 21,
+  "durationUsedSeconds": 60121,
+  "distanceUsedMeters": 138383.50024414062,
+  "daysUsed": 21,
+  "processing": false,
+  "createdDate": "2026-08-24T10:40:08.0"
+ }
+]

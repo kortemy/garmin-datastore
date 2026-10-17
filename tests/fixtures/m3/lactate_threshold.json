@@ -1,0 +1,21 @@
+{
+ "speed_and_heart_rate": {
+  "version": 1789654884881,
+  "calendarDate": "2026-09-17T16:21:24.836",
+  "sequence": 1789654884881,
+  "speed": 0.29999916,
+  "heartRate": 176,
+  "heartRateCycling": null
+ },
+ "power": {
+  "calendarDate": "2026-09-12T12:18:51.0",
+  "origin": "power",
+  "sport": "RUNNING",
+  "functionalThresholdPower": 461,
+  "weight": 107.0,
+  "powerToWeight": 4.308411214953271,
+  "ftpCreateTime": "2026-09-12T12:18:51.0",
+  "weightCreateTime": "2026-08-29T08:12:22.9",
+  "isStale": false
+ }
+}

@@ -203,6 +203,19 @@ def cmd_tick(args: argparse.Namespace) -> None:
     print(json.dumps(engine.run_tick(trigger=args.trigger), indent=2, default=str))
 
 
+def cmd_renormalize(args: argparse.Namespace) -> None:
+    """Rebuild typed rows for domains from stored raw payloads (no Garmin calls)."""
+    load_env_into_process()
+    from gds import engine
+    from gds.config import settings
+    from gds.db import connect
+
+    with connect(autocommit=True) as conn:
+        acct = conn.execute("select id from garmin.accounts where label = %s", (settings().account_label,)).fetchone()
+        for name in args.domains:
+            print(name, engine.renormalize(conn, acct["id"], name))
+
+
 def cmd_connector_url(args: argparse.Namespace) -> None:
     load_env_into_process()
     print(f"{_base_url(args)}/s/{os.environ['MCP_PATH_SECRET']}/mcp")
@@ -224,6 +237,9 @@ def main() -> None:
     p_tick = sub.add_parser("tick", help="run one sync tick locally")
     p_tick.add_argument("--trigger", default="local_cli")
     p_tick.set_defaults(func=cmd_tick)
+    p_ren = sub.add_parser("renormalize", help="rebuild typed rows from stored raw payloads")
+    p_ren.add_argument("domains", nargs="+")
+    p_ren.set_defaults(func=cmd_renormalize)
     p_url = sub.add_parser("connector-url", help="print the Claude connector URL (contains a secret)")
     p_url.add_argument("--base", default=None, help="deployed app URL (or GDS_BASE_URL)")
     p_url.set_defaults(func=cmd_connector_url)

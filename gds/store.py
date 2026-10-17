@@ -24,7 +24,30 @@ TABLE_KEYS: dict[str, tuple[str, ...]] = {
     "activity_exercise_sets": ("account_id", "activity_id", "set_index"),
     "activity_weather": ("account_id", "activity_id"),
     "activity_files": ("account_id", "activity_id", "format"),
+    "weigh_ins": ("account_id", "sample_pk"),
+    "blood_pressure": ("account_id", "measured_utc"),
+    "performance_metrics": ("account_id", "calendar_date", "metric"),
+    "entities": ("account_id", "kind", "entity_id"),
+    "calendar_items": ("account_id", "item_type", "item_id"),
+    "body_battery_events": ("account_id", "event_start_utc", "event_type"),
 }
+
+
+def replace_missing(
+    conn: psycopg.Connection, acct: uuid.UUID, table: str, scope: dict[str, Any], keep: list[dict[str, Any]]
+) -> int:
+    """Delete rows of `table` within `scope` whose natural key isn't in `keep` (a full
+    snapshot of that scope, so anything absent was deleted in Garmin)."""
+    keys = [k for k in TABLE_KEYS[table] if k != "account_id" and k not in scope]
+    keep_ids = ["|".join(str(r[k]) for k in keys) for r in keep]
+    where = sql.SQL(" and ").join(sql.SQL("{} = %s").format(sql.Identifier(c)) for c in scope)
+    key_expr = sql.SQL("concat_ws('|', {})").format(
+        sql.SQL(", ").join(sql.SQL("{}::text").format(sql.Identifier(k)) for k in keys)
+    )
+    q = sql.SQL("delete from garmin.{t} where account_id = %s and {where} and {key} <> all(%s::text[])").format(
+        t=sql.Identifier(table), where=where, key=key_expr
+    )
+    return conn.execute(q, (acct, *scope.values(), keep_ids)).rowcount
 
 
 def encode_raw(payload: Any) -> tuple[bytes, str]:

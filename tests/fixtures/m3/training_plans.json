@@ -1,0 +1,72 @@
+{
+ "trainingPlanList": [
+  {
+   "trainingPlanId": 39659875,
+   "trainingPlanCategory": "FBT_ADAPTIVE",
+   "trainingType": {
+    "typeId": 2,
+    "typeKey": "Running"
+   },
+   "trainingSubType": {
+    "subTypeId": 27,
+    "subTypeKey": "GarminRunningCoachOpenLoop"
+   },
+   "trainingLevel": {
+    "levelId": 3,
+    "levelKey": "Intermediate"
+   },
+   "trainingVersion": {
+    "versionId": 3,
+    "versionName": "Pace"
+   },
+   "formatLocale": {
+    "id": 1,
+    "key": "en",
+    "isSupported": true
+   },
+   "trainingStatus": {
+    "statusId": 2,
+    "statusKey": "Completed"
+   },
+   "privacyRule": {
+    "typeId": 2,
+    "typeKey": "private"
+   },
+   "name": "2025 Fitness Plan",
+   "description": "Garmin Run Coach. Open Loop. Pace version.",
+   "durationInWeeks": 16,
+   "avgWeeklyWorkouts": 5,
+   "parentPlanId": 37231650,
+   "createDate": "2025-03-11T00:00:00.0",
+   "publishDate": null,
+   "expireDate": null,
+   "startDate": "2025-03-11T00:00:00.0",
+   "pausedDate": null,
+   "resumedDate": null,
+   "endDate": "2025-07-01T00:00:00.0",
+   "taskList": null,
+   "adaptivePlanPhases": null,
+   "planPhases": null,
+   "nameI18nKey": "tp_name_c8421957-8aaf-486e-a648-ac464bf71437",
+   "descriptionI18nKey": "tp_descr_337ed103-3e44-4e87-9cdd-4ca128cea1b8",
+   "planKey": "run_fcda3774-7aee-49d2-8506-48c57855e9d2",
+   "seriesIndex": null,
+   "daysInLastWeek": null,
+   "supplementalSports": [
+    "STRENGTH_TRAINING_BODYWEIGHT"
+   ]
+  }
+ ],
+ "searchFilter": {
+  "trainingLevels": null,
+  "trainingStatusList": [],
+  "trainingTypes": null,
+  "trainingSubTypes": null,
+  "trainingVersions": null,
+  "allowedPrivacyList": null,
+  "locale": null,
+  "start": 1,
+  "limit": 20,
+  "planKey": false
+ }
+}

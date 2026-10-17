@@ -364,6 +364,43 @@ def _hydration(raw: Any, day: str) -> Rows:
     }
 
 
+def _bb_events(raw: Any, day: str) -> Rows:
+    rows = []
+    for item in raw if isinstance(raw, list) else []:
+        e = item.get("event") if isinstance(item, dict) else None
+        if not isinstance(e, dict) or parse_ts(e.get("eventStartTimeGmt")) is None:
+            continue
+        tz_ms, dur_ms = num(e.get("timezoneOffset")), num(e.get("durationInMilliseconds"))
+        rows.append(
+            {
+                "event_start_utc": parse_ts(e.get("eventStartTimeGmt")),
+                "event_type": e.get("eventType") or "UNKNOWN",
+                "calendar_date": parse_date(day),
+                "utc_offset_min": int(tz_ms / 60000) if tz_ms is not None else None,
+                "duration_s": dur_ms / 1000 if dur_ms is not None else None,
+                "impact": to_int(e.get("bodyBatteryImpact")),
+                "feedback_type": e.get("feedbackType"),
+                "short_feedback": e.get("shortFeedback"),
+                "activity_id": to_int(item.get("activityId")),
+                "activity_name": item.get("activityName"),
+                "activity_type": item.get("activityType"),
+                "avg_stress": num(item.get("averageStress")),
+            }
+        )
+    return {"body_battery_events": rows} if rows else {}
+
+
+def _fitness_age(raw: Any, day: str) -> Rows:
+    if not isinstance(raw, dict) or num(raw.get("fitnessAge")) is None:
+        return {}
+    rows = [{"calendar_date": parse_date(day), "metric": "fitness_age", "value": num(raw.get("fitnessAge")),
+             "detail": {"components": raw.get("components"), "chronological_age": raw.get("chronologicalAge")}}]
+    if num(raw.get("achievableFitnessAge")) is not None:
+        rows.append({"calendar_date": parse_date(day), "metric": "fitness_age_achievable",
+                     "value": num(raw.get("achievableFitnessAge")), "detail": None})
+    return {"performance_metrics": rows}
+
+
 # ---------------------------------------------------------------- registry
 
 
@@ -383,8 +420,8 @@ register(Domain("steps", "daily", _simple("get_steps_data"), _steps, priority=8)
 register(Domain("floors", "daily", _simple("get_floors"), _floors, priority=7))
 register(Domain("spo2", "daily", _simple("get_spo2_data"), _spo2, priority=7))
 register(Domain("hydration", "daily", _simple("get_hydration_data"), _hydration, priority=7))
-# Raw-only for now: stored in full, mapped to tables in M3.
+register(Domain("body_battery_events", "daily", _simple("get_body_battery_events"), _bb_events, priority=5))
+register(Domain("fitness_age", "daily", _simple("get_fitnessage_data"), _fitness_age, priority=5))
+# Raw-only: duplicates of fields already in daily_summary (kept in full for completeness).
 register(Domain("intensity_minutes", "daily", _simple("get_intensity_minutes_data"), priority=5))
 register(Domain("rhr", "daily", _simple("get_rhr_day"), priority=5))
-register(Domain("body_battery_events", "daily", _simple("get_body_battery_events"), priority=5))
-register(Domain("fitness_age", "daily", _simple("get_fitnessage_data"), priority=5))

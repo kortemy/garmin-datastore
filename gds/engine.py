@@ -5,6 +5,7 @@ commits on its own, and anything unfinished is picked up by the next tick.
 """
 
 import datetime as dt
+import hashlib
 import logging
 import os
 import socket
@@ -21,7 +22,7 @@ from gds import broker, store
 from gds.alerts import raise_alert
 from gds.config import settings
 from gds.db import connect
-from gds.domains import REGISTRY, daily_domains
+from gds.domains import REGISTRY, daily_domains, domains_in
 from gds.source import AuthFailed, Blocked, RateLimited, Source, SourceError, Transient
 
 log = logging.getLogger(__name__)
@@ -72,30 +73,80 @@ def account_today(acct: dict[str, Any]) -> dt.date:
     return dt.datetime.now(ZoneInfo(acct["home_timezone"] or "UTC")).date()
 
 
+def month_key(d: dt.date, shift: int = 0) -> str:
+    y, m = divmod(d.year * 12 + d.month - 1 + shift, 12)
+    return f"{y:04d}-{m + 1:02d}"
+
+
+def months_between(start: dt.date, end_key: str) -> list[str]:
+    keys, i = [], 0
+    while (k := month_key(start, i)) <= end_key:
+        keys.append(k)
+        i += 1
+    return keys
+
+
+def _registry_signature() -> str:
+    return hashlib.sha1("|".join(sorted(f"{d.name}:{d.scope}:{d.months_ahead}" for d in REGISTRY.values()))
+                        .encode()).hexdigest()[:12]
+
+
+def _create_units(conn: psycopg.Connection, acct: dict[str, Any], start: dt.date, today: dt.date) -> int:
+    """Insert every unit that should exist (idempotent). Only runs when the day, the
+    backfill start or the domain registry changed, so ordinary ticks skip it."""
+    acct_id = acct["id"]
+    daily = daily_domains()
+    created = conn.execute(
+        """insert into garmin.work_units (account_id, domain, scope_key, priority)
+           select %s, d.name, to_char(day, 'YYYY-MM-DD'), d.priority
+           from generate_series(%s::date, %s::date, interval '1 day') as day
+           cross join unnest(%s::text[], %s::int[]) as d(name, priority)
+           on conflict do nothing""",
+        (acct_id, start, today, [d.name for d in daily], [d.priority for d in daily]),
+    ).rowcount
+    keyed: list[tuple[str, str, int]] = []
+    for d in domains_in("range"):
+        keyed += [(d.name, m, d.priority) for m in months_between(start, month_key(today, d.months_ahead))]
+    keyed += [(d.name, "latest", d.priority) for d in domains_in("snapshot")]
+    # Activity index: "all" walks the full history (first run, then weekly to pick up
+    # edits), "recent" checks the newest page on every incremental pass.
+    keyed += [("activity_index", "all", REGISTRY["activity_index"].priority),
+              ("activity_index", "recent", PRIORITY_INCREMENTAL)]
+    created += conn.execute(
+        """insert into garmin.work_units (account_id, domain, scope_key, priority)
+           select %s, u.domain, u.scope_key, u.priority
+           from unnest(%s::text[], %s::text[], %s::int[]) as u(domain, scope_key, priority)
+           on conflict do nothing""",
+        (acct_id, [k[0] for k in keyed], [k[1] for k in keyed], [k[2] for k in keyed]),
+    ).rowcount
+    return created
+
+
 def plan(conn: psycopg.Connection, acct: dict[str, Any]) -> dict[str, Any]:
-    """Make sure every (daily domain × date) unit exists, and queue the recent window
-    when an incremental pass is due."""
+    """Make sure every unit exists, re-queue snapshot/range units that are due for a
+    refresh, and queue the recent window when an incremental pass is due."""
     s = settings()
     today = account_today(acct)
     window_start = today - dt.timedelta(days=s.recent_window_days)
     start = min(acct["backfill_start"] or window_start, window_start)
     names = [d.name for d in daily_domains()]
+    signature = f"{today}|{start}|{_registry_signature()}"
     with conn.transaction():
-        created = conn.execute(
-            """insert into garmin.work_units (account_id, domain, scope_key, priority)
-               select %s, d.name, to_char(day, 'YYYY-MM-DD'), d.priority
-               from generate_series(%s::date, %s::date, interval '1 day') as day
-               cross join unnest(%s::text[], %s::int[]) as d(name, priority)
-               on conflict do nothing""",
-            (acct["id"], start, today, names, [REGISTRY[n].priority for n in names]),
-        ).rowcount
-        # Activity index: "all" walks the full history (first run, then weekly to pick up
-        # edits), "recent" checks the newest page on every incremental pass.
-        created += conn.execute(
-            """insert into garmin.work_units (account_id, domain, scope_key, priority)
-               values (%s, 'activity_index', 'all', %s), (%s, 'activity_index', 'recent', %s)
-               on conflict do nothing""",
-            (acct["id"], REGISTRY["activity_index"].priority, acct["id"], PRIORITY_INCREMENTAL),
+        created = 0
+        if acct.get("planned_signature") != signature:
+            created = _create_units(conn, acct, start, today)
+            conn.execute("update garmin.accounts set planned_signature = %s where id = %s", (signature, acct["id"]))
+        # Snapshots and the live months of range domains are re-fetched every refresh_hours.
+        refreshing = [d for d in REGISTRY.values() if d.refresh_hours and d.scope in ("snapshot", "range")]
+        live = ["latest"] + [month_key(today, i) for i in (-1, 0, 1, 2)]
+        refreshed = conn.execute(
+            """update garmin.work_units w
+               set status = 'pending', attempts = 0, next_attempt_at = now(), updated_at = now()
+               from unnest(%s::text[], %s::float8[]) as r(domain, hours)
+               where w.account_id = %s and w.domain = r.domain and w.scope_key = any(%s)
+                 and w.status <> 'pending'
+                 and (w.last_fetched_at is null or w.last_fetched_at < now() - r.hours * interval '1 hour')""",
+            ([d.name for d in refreshing], [d.refresh_hours for d in refreshing], acct["id"], live),
         ).rowcount
         conn.execute(
             """update garmin.work_units
@@ -118,7 +169,7 @@ def plan(conn: psycopg.Connection, acct: dict[str, Any]) -> dict[str, Any]:
                 (PRIORITY_INCREMENTAL, acct["id"], names, window_start.isoformat()),
             ).rowcount
             conn.execute("update garmin.accounts set last_incremental_at = now() where id = %s", (acct["id"],))
-    return {"units_created": created, "incremental": due, "units_requeued": queued}
+    return {"units_created": created, "incremental": due, "units_requeued": queued, "units_refreshed": refreshed}
 
 
 def request_resync(
@@ -170,6 +221,20 @@ def _mark(conn: psycopg.Connection, acct_id: uuid.UUID, unit: dict[str, Any], st
     )
 
 
+def apply_rows(conn: psycopg.Connection, acct_id: uuid.UUID, rows: dict[str, Any]) -> int:
+    """Write a normaliser's output: upserts, requested work units, then replace-scopes."""
+    written = 0
+    for table, table_rows in rows.items():
+        if table == "work_units":
+            store.ensure_units(conn, acct_id, table_rows)
+        elif table != "_replace":
+            written += store.upsert_rows(conn, acct_id, table, table_rows)
+    for spec in rows.get("_replace", []):
+        keep = [r for r in rows.get(spec["table"], []) if all(r.get(c) == v for c, v in spec["scope"].items())]
+        store.replace_missing(conn, acct_id, spec["table"], spec["scope"], keep)
+    return written
+
+
 def process_unit(conn: psycopg.Connection, src: Source, acct_id: uuid.UUID, unit: dict[str, Any]) -> str:
     """Fetch → hash → (if changed) store raw + normalised rows atomically. Returns the outcome."""
     domain = REGISTRY.get(unit["domain"])
@@ -206,11 +271,7 @@ def process_unit(conn: psycopg.Connection, src: Source, acct_id: uuid.UUID, unit
     with conn.transaction():
         if not domain.binary:  # binary payloads (FIT zips) are stored by their own table
             store.save_raw(conn, acct_id, unit["domain"], unit["scope_key"], data, digest)
-        for table, table_rows in rows.items():
-            if table == "work_units":
-                store.ensure_units(conn, acct_id, table_rows)
-            else:
-                store.upsert_rows(conn, acct_id, table, table_rows)
+        apply_rows(conn, acct_id, rows)
         if normalize_error:
             # Raw is saved; keep the hash empty so a fixed normaliser reprocesses it.
             attempts = unit["attempts"] + 1
@@ -220,7 +281,7 @@ def process_unit(conn: psycopg.Connection, src: Source, acct_id: uuid.UUID, unit
                 next_attempt_at=now + backoff(attempts),
             )
             return "failed"
-        typed = {t: r for t, r in rows.items() if t != "work_units"}
+        typed = {t: r for t, r in rows.items() if t not in ("work_units", "_replace")}
         status = "empty" if domain.normalize and not typed else "done"
         _mark(conn, acct_id, unit, status, content_hash=digest, fetched_at=now)
     return status
@@ -235,6 +296,23 @@ def _fail(conn: psycopg.Connection, acct_id: uuid.UUID, unit: dict[str, Any], er
             next_attempt_at=dt.datetime.now(dt.UTC) + backoff(attempts),
         )
     return "failed"
+
+
+def renormalize(conn: psycopg.Connection, acct_id: uuid.UUID, domain_name: str) -> dict[str, int]:
+    """Rebuild typed rows for one domain from stored raw payloads (no Garmin calls).
+    Use after adding or fixing a normaliser."""
+    domain = REGISTRY[domain_name]
+    if domain.normalize is None or domain.binary:
+        return {"units": 0, "rows": 0}
+    keys = [r["scope_key"] for r in conn.execute(
+        "select scope_key from garmin.raw_objects where account_id = %s and domain = %s", (acct_id, domain_name)
+    ).fetchall()]
+    total_rows = 0
+    for key in keys:
+        raw = store.load_raw(conn, acct_id, domain_name, key)
+        with conn.transaction():
+            total_rows += apply_rows(conn, acct_id, domain.normalize(raw, key))
+    return {"units": len(keys), "rows": total_rows}
 
 
 # ---------------------------------------------------------------- tick

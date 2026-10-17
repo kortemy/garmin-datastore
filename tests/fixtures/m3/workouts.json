@@ -1,0 +1,762 @@
+[
+ {
+  "workoutId": 1703113674,
+  "workoutName": "Long run",
+  "description": null,
+  "updateDate": "2026-09-27T10:22:06.0",
+  "createdDate": "2026-09-20T06:58:03.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 0,
+  "estimatedDistanceInMeters": null,
+  "estimateType": null,
+  "estimatedDistanceUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": "meter",
+   "factor": 100.0
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": null,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": "https://connect.garmin.com/chart-service/workout?data=md:s1,c1=0.0;s3,c3=1200000.0,t4=v120.0~158.0;s2,c1=0.0;",
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1699962905,
+  "workoutName": "7km + strides",
+  "description": null,
+  "updateDate": "2026-09-16T06:37:56.0",
+  "createdDate": "2026-09-16T06:37:56.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 3520,
+  "estimatedDistanceInMeters": 8282.4,
+  "estimateType": "TIME_AND_DISTANCE_ESTIMATED",
+  "estimatedDistanceUnit": {
+   "unitKey": "meter",
+   "factor": 100.0
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": "meter",
+   "factor": 100.0
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": null,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": "https://connect.garmin.com/chart-service/workout?data=md:s1,c3>200000.0,t6=v0.2380952380952381~0.22222222222222224;6(s3,c3=10000.0,t6=v0.41666666666666674~0.33333333333333337;s4,c2=120000.0;);s3,c3>300000.0,t6=v0.2380952380952381~0.22222222222222224;s2,c3>100000.0;",
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1680515597,
+  "workoutName": "Intervals + Strides",
+  "description": null,
+  "updateDate": "2026-09-02T06:09:43.0",
+  "createdDate": "2026-08-30T06:08:36.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 2780,
+  "estimatedDistanceInMeters": 6700.0,
+  "estimateType": "TIME_AND_DISTANCE_ESTIMATED",
+  "estimatedDistanceUnit": {
+   "unitKey": "kilometer",
+   "factor": 100000.0
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": "meter",
+   "factor": 100.0
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": null,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": "https://connect.garmin.com/chart-service/workout?data=md:s1,c2>900000.0,t4=z3;2(s3,c3=100000.0,t6=v0.27777778000000003~0.26315789;s4,c2=120000.0;);4(s3,c3=10000.0,t6=v0.37037037000000006~0.35087719000000006;s4,c2=60000.0;)x;s2,c2>600000.0;",
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1668891673,
+  "workoutName": "2x10",
+  "description": null,
+  "updateDate": "2026-10-14T08:20:48.0",
+  "createdDate": "2026-08-18T06:10:36.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 3400,
+  "estimatedDistanceInMeters": 7500.0,
+  "estimateType": "TIME_AND_DISTANCE_ESTIMATED",
+  "estimatedDistanceUnit": {
+   "unitKey": "kilometer",
+   "factor": 100000.0
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": "meter",
+   "factor": 100.0
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": null,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": "https://connect.garmin.com/chart-service/workout?data=md:s1,c3>250000.0;2(s3,c2>600000.0;s4,c2=180000.0;)x;s2,c3>200000.0;",
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1655609306,
+  "workoutName": "5k 30m",
+  "description": null,
+  "updateDate": "2026-08-06T05:38:52.0",
+  "createdDate": "2026-08-06T05:25:49.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 1800,
+  "estimatedDistanceInMeters": 5000.0,
+  "estimateType": "TIME_ESTIMATED",
+  "estimatedDistanceUnit": {
+   "unitKey": "kilometer",
+   "factor": 100000.0
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": "meter",
+   "factor": 100.0
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": null,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": "https://connect.garmin.com/chart-service/workout?data=md:s3,c3=500000.0,t6=v0.29411765~0.26666667;",
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1639016433,
+  "workoutName": "Tempo",
+  "description": null,
+  "updateDate": "2026-08-03T06:03:12.0",
+  "createdDate": "2026-07-21T11:31:17.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 1800,
+  "estimatedDistanceInMeters": 5000.0,
+  "estimateType": "TIME_ESTIMATED",
+  "estimatedDistanceUnit": {
+   "unitKey": "kilometer",
+   "factor": 100000.0
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": "meter",
+   "factor": 100.0
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": null,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": "https://connect.garmin.com/chart-service/workout?data=md:s3,c3>500000.0,t6=v0.2898550724637681~0.26666666666666666;",
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1639013209,
+  "workoutName": "Hard / Intervals 4x4",
+  "description": null,
+  "updateDate": "2026-08-25T09:20:44.0",
+  "createdDate": "2026-07-21T11:26:46.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 1860,
+  "estimatedDistanceInMeters": 5200.0,
+  "estimateType": "DISTANCE_ESTIMATED",
+  "estimatedDistanceUnit": {
+   "unitKey": "kilometer",
+   "factor": 100000.0
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": "meter",
+   "factor": 100.0
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": null,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": "https://connect.garmin.com/chart-service/workout?data=md:s1,c2>180000.0;4(s3,c2>240000.0,t6=v0.32258065~0.30303030000000003;s4,c2>180000.0;)x;s2,c2>180000.0;",
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1334263975,
+  "workoutName": "Hard / Sprints 6x30s",
+  "description": null,
+  "updateDate": "2026-07-21T11:27:29.0",
+  "createdDate": "2025-09-21T06:38:17.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 1200,
+  "estimatedDistanceInMeters": 1300.0,
+  "estimateType": "DISTANCE_ESTIMATED",
+  "estimatedDistanceUnit": {
+   "unitKey": "kilometer",
+   "factor": 100000.0
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": "meter",
+   "factor": 100.0
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": null,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": "https://connect.garmin.com/chart-service/workout?data=md:s1,c2=300000.0;6(s3,c2=30000.0;s5,c2=120000.0;);",
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1183286552,
+  "workoutName": "Easy / Zone 2",
+  "description": "Aerobic run",
+  "updateDate": "2026-09-25T07:17:11.0",
+  "createdDate": "2025-04-09T15:32:21.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 2100,
+  "estimatedDistanceInMeters": 5000.0,
+  "estimateType": "TIME_ESTIMATED",
+  "estimatedDistanceUnit": {
+   "unitKey": "kilometer",
+   "factor": 100000.0
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": "meter",
+   "factor": 100.0
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": null,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": "https://connect.garmin.com/chart-service/workout?data=md:s3,c3>500000.0,t4=v100.0~155.0;",
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1156911067,
+  "workoutName": "Easy Run",
+  "description": "Run at an easy pace.",
+  "updateDate": "2025-03-11T16:37:45.0",
+  "createdDate": "2025-03-11T16:37:45.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 2400,
+  "estimatedDistanceInMeters": null,
+  "estimateType": null,
+  "estimatedDistanceUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": 1737194698,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": null,
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1154291411,
+  "workoutName": "Easy Run",
+  "description": "Run at an easy pace.",
+  "updateDate": "2025-03-09T14:31:57.0",
+  "createdDate": "2025-03-09T14:31:57.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 3600,
+  "estimatedDistanceInMeters": null,
+  "estimateType": null,
+  "estimatedDistanceUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": 1737194698,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": null,
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1153200362,
+  "workoutName": "Easy Run",
+  "description": "Run at an easy pace.",
+  "updateDate": "2025-03-08T07:09:03.0",
+  "createdDate": "2025-03-08T07:09:03.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 1800,
+  "estimatedDistanceInMeters": null,
+  "estimateType": null,
+  "estimatedDistanceUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": 1737194698,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": null,
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1151750106,
+  "workoutName": "Easy Run",
+  "description": "Run at an easy pace.",
+  "updateDate": "2025-03-06T07:09:30.0",
+  "createdDate": "2025-03-06T07:09:30.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 1800,
+  "estimatedDistanceInMeters": null,
+  "estimateType": null,
+  "estimatedDistanceUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": 1737194698,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": null,
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1150412172,
+  "workoutName": "Easy Run",
+  "description": "Run at an easy pace.",
+  "updateDate": "2025-03-04T13:15:01.0",
+  "createdDate": "2025-03-04T13:15:01.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 1800,
+  "estimatedDistanceInMeters": null,
+  "estimateType": null,
+  "estimatedDistanceUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": 1737194698,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": null,
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1150412173,
+  "workoutName": "Easy Run",
+  "description": "Run at an easy pace.",
+  "updateDate": "2025-03-04T13:15:01.0",
+  "createdDate": "2025-03-04T13:15:01.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 1800,
+  "estimatedDistanceInMeters": null,
+  "estimateType": null,
+  "estimatedDistanceUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": 1737194698,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": null,
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1150412174,
+  "workoutName": "Easy Run",
+  "description": "Run at an easy pace.",
+  "updateDate": "2025-03-04T13:15:01.0",
+  "createdDate": "2025-03-04T13:15:01.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 3000,
+  "estimatedDistanceInMeters": null,
+  "estimateType": null,
+  "estimatedDistanceUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": 1737194698,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": null,
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1150412175,
+  "workoutName": "Easy Run",
+  "description": "Run at an easy pace.",
+  "updateDate": "2025-03-04T13:15:01.0",
+  "createdDate": "2025-03-04T13:15:01.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 1800,
+  "estimatedDistanceInMeters": null,
+  "estimateType": null,
+  "estimatedDistanceUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": 1737194698,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": null,
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1149189078,
+  "workoutName": "Benchmark Run",
+  "description": "Warm up, run and walk with strong effort, cool down.",
+  "updateDate": "2025-03-03T08:06:04.0",
+  "createdDate": "2025-03-03T08:06:04.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 540,
+  "estimatedDistanceInMeters": null,
+  "estimateType": null,
+  "estimatedDistanceUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": 1737194698,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": "https://connect.garmin.com/chart-service/workout?data=md:s1,c2=120000.0;s3,c2=300000.0;s2,c2=120000.0;",
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1130342715,
+  "workoutName": "Benchmark Run",
+  "description": "Warm up, run and walk with strong effort, cool down.",
+  "updateDate": "2025-02-10T00:07:57.0",
+  "createdDate": "2025-02-10T00:07:57.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 540,
+  "estimatedDistanceInMeters": null,
+  "estimateType": null,
+  "estimatedDistanceUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": 1737194698,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": null,
+  "shared": false,
+  "estimated": true
+ },
+ {
+  "workoutId": 1109615842,
+  "workoutName": "Benchmark Run",
+  "description": "Warm up, run and walk with strong effort, cool down.",
+  "updateDate": "2025-01-18T10:04:59.0",
+  "createdDate": "2025-01-18T10:04:59.0",
+  "sportType": {
+   "sportTypeId": 1,
+   "sportTypeKey": "running",
+   "displayOrder": 1
+  },
+  "trainingPlanId": null,
+  "author": {
+   "userPro": false,
+   "vivokidUser": false
+  },
+  "estimatedDurationInSecs": 540,
+  "estimatedDistanceInMeters": null,
+  "estimateType": null,
+  "estimatedDistanceUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "poolLength": 0.0,
+  "poolLengthUnit": {
+   "unitKey": null,
+   "factor": null
+  },
+  "workoutProvider": null,
+  "workoutSourceId": null,
+  "consumer": null,
+  "atpPlanId": 1737194698,
+  "workoutNameI18nKey": null,
+  "descriptionI18nKey": null,
+  "workoutThumbnailUrl": null,
+  "shared": false,
+  "estimated": true
+ }
+]

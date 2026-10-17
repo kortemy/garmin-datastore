@@ -1,0 +1,30 @@
+[
+ {
+  "userGoalPk": 3366452125,
+  "userGoalCategory": "MY_AUTO",
+  "userGoalType": "STEPS",
+  "startDate": "2025-01-18",
+  "endDate": null,
+  "goalName": null,
+  "goalValue": 7730.0,
+  "updateDate": "2026-10-17T00:00:00.0",
+  "createDate": "2025-01-18T09:43:52.0",
+  "rulePk": null,
+  "activityTypePk": null,
+  "trackingPeriodType": "DAILY"
+ },
+ {
+  "userGoalPk": 3366453931,
+  "userGoalCategory": "MANUAL",
+  "userGoalType": "HYDRATION",
+  "startDate": "2025-01-13",
+  "endDate": null,
+  "goalName": null,
+  "goalValue": 2000.0,
+  "updateDate": "2025-01-18T10:24:02.0",
+  "createDate": "2025-01-18T10:24:02.0",
+  "rulePk": null,
+  "activityTypePk": 9,
+  "trackingPeriodType": "DAILY"
+ }
+]

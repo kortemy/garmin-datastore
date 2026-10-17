@@ -1,0 +1,70 @@
+{
+ "startDate": "2025-01-01",
+ "endDate": "2026-10-17",
+ "dateWeightList": [
+  {
+   "samplePk": 1787983949985,
+   "date": 1787991142009,
+   "calendarDate": "2026-08-29",
+   "weight": 107000.0,
+   "bmi": null,
+   "bodyFat": null,
+   "bodyWater": null,
+   "boneMass": null,
+   "muscleMass": null,
+   "physiqueRating": null,
+   "visceralFat": null,
+   "metabolicAge": null,
+   "sourceType": "MANUAL",
+   "timestampGMT": 1787983942009,
+   "weightDelta": null
+  },
+  {
+   "samplePk": 1757836599197,
+   "date": 1757843792000,
+   "calendarDate": "2025-09-14",
+   "weight": 107000.0,
+   "bmi": null,
+   "bodyFat": null,
+   "bodyWater": null,
+   "boneMass": null,
+   "muscleMass": null,
+   "physiqueRating": null,
+   "visceralFat": null,
+   "metabolicAge": null,
+   "sourceType": "CHANGE_LOG",
+   "timestampGMT": 1757836592000,
+   "weightDelta": null
+  },
+  {
+   "samplePk": 1737193029670,
+   "date": 1737196629619,
+   "calendarDate": "2025-01-18",
+   "weight": 103000.0,
+   "bmi": null,
+   "bodyFat": null,
+   "bodyWater": null,
+   "boneMass": null,
+   "muscleMass": null,
+   "physiqueRating": null,
+   "visceralFat": null,
+   "metabolicAge": null,
+   "sourceType": "USER_SETTING",
+   "timestampGMT": 1737193029619,
+   "weightDelta": null
+  }
+ ],
+ "totalAverage": {
+  "from": 1735689600000,
+  "until": 1792281599999,
+  "weight": 105666.66666666667,
+  "bmi": null,
+  "bodyFat": null,
+  "bodyWater": null,
+  "boneMass": null,
+  "muscleMass": null,
+  "physiqueRating": null,
+  "visceralFat": null,
+  "metabolicAge": null
+ }
+}
