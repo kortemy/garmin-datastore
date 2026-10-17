@@ -21,8 +21,10 @@ mcp = MCPServer(
 
 
 @mcp.tool()
-def ping() -> str:
-    """Connectivity check. Returns 'pong' and the server time."""
+def ping(note: str = "") -> str:
+    """Connectivity check. Records the call with an optional short note (e.g. 'chat' or
+    'scheduled task') and returns 'pong' with the server time."""
+    spike.record_tick("mcp", "ping", {"note": note[:100]})
     return f"pong {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}"
 
 

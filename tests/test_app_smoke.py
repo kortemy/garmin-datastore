@@ -43,7 +43,11 @@ def test_mcp_wrong_path_is_404(c):
     assert c.post("/s/nope/mcp", headers=MCP_HEADERS, json={}).status_code == 404
 
 
-def test_mcp_ping_roundtrip(c):
+def test_mcp_ping_roundtrip(c, monkeypatch):
+    from gds import spike
+
+    recorded = []
+    monkeypatch.setattr(spike, "record_tick", lambda *a, **k: recorded.append(a))
     init = _rpc(
         c,
         "initialize",
@@ -52,5 +56,6 @@ def test_mcp_ping_roundtrip(c):
     assert init["result"]["serverInfo"]["name"] == "garmin-datastore"
     tools = _rpc(c, "tools/list", id_=2)["result"]["tools"]
     assert {t["name"] for t in tools} == {"ping", "spike_status"}
-    out = _rpc(c, "tools/call", {"name": "ping", "arguments": {}}, id_=3)
+    out = _rpc(c, "tools/call", {"name": "ping", "arguments": {"note": "test"}}, id_=3)
     assert "pong" in out["result"]["content"][0]["text"]
+    assert recorded == [("mcp", "ping", {"note": "test"})]
