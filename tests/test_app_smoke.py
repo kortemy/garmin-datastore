@@ -55,7 +55,7 @@ def test_mcp_ping_roundtrip(c, monkeypatch):
     )
     assert init["result"]["serverInfo"]["name"] == "garmin-datastore"
     tools = _rpc(c, "tools/list", id_=2)["result"]["tools"]
-    assert {t["name"] for t in tools} == {"ping", "spike_status"}
+    assert {t["name"] for t in tools} == {"ping", "get_sync_status"}
     out = _rpc(c, "tools/call", {"name": "ping", "arguments": {"note": "test"}}, id_=3)
     assert "pong" in out["result"]["content"][0]["text"]
     assert recorded == [("mcp", "ping", {"note": "test"})]

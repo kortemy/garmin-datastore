@@ -413,6 +413,7 @@ dependencies = [
     { name = "garminconnect" },
     { name = "mcp" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "tzdata" },
 ]
 
 [package.dev-dependencies]
@@ -430,6 +431,7 @@ requires-dist = [
     { name = "garminconnect", specifier = "==0.3.19" },
     { name = "mcp", specifier = ">=1.10" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+    { name = "tzdata", specifier = ">=2024.1" },
 ]
 
 [package.metadata.requires-dev]

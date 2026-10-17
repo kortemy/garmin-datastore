@@ -1,0 +1,79 @@
+{
+ "status": {
+  "mostRecentVO2Max": {
+   "generic": {
+    "calendarDate": "2026-10-14",
+    "vo2MaxPreciseValue": 44.6,
+    "vo2MaxValue": 45.0,
+    "fitnessAge": null,
+    "fitnessAgeDescription": null,
+    "maxMetCategory": 0
+   },
+   "cycling": null,
+   "heatAltitudeAcclimation": null
+  },
+  "mostRecentTrainingLoadBalance": {
+   "metricsTrainingLoadBalanceDTOMap": {
+    "0": {
+     "calendarDate": "2026-10-15",
+     "monthlyLoadAerobicLow": 456.74872,
+     "monthlyLoadAerobicHigh": 583.20404,
+     "monthlyLoadAnaerobic": 138.29683,
+     "monthlyLoadAerobicLowTargetMin": 233,
+     "monthlyLoadAerobicLowTargetMax": 634,
+     "monthlyLoadAerobicHighTargetMin": 501,
+     "monthlyLoadAerobicHighTargetMax": 901,
+     "monthlyLoadAnaerobicTargetMin": 133,
+     "monthlyLoadAnaerobicTargetMax": 400,
+     "trainingBalanceFeedbackPhrase": "BALANCED",
+     "primaryTrainingDevice": true
+    }
+   },
+   "recordedDevices": [
+    {
+     "category": 0
+    }
+   ]
+  },
+  "mostRecentTrainingStatus": {
+   "latestTrainingStatusData": {
+    "0": {
+     "calendarDate": "2026-10-15",
+     "sinceDate": "2026-10-14",
+     "weeklyTrainingLoad": null,
+     "trainingStatus": 7,
+     "timestamp": 1792043178000,
+     "loadTunnelMin": null,
+     "loadTunnelMax": null,
+     "loadLevelTrend": null,
+     "sport": "RUNNING",
+     "subSport": "GENERIC",
+     "fitnessTrendSport": "RUNNING",
+     "fitnessTrend": 2,
+     "trainingStatusFeedbackPhrase": "PRODUCTIVE_2",
+     "trainingPaused": false,
+     "acuteTrainingLoadDTO": {
+      "acwrPercent": 52,
+      "acwrStatus": "OPTIMAL",
+      "acwrStatusFeedback": "FEEDBACK_2",
+      "dailyTrainingLoadAcute": 346,
+      "maxTrainingLoadChronic": 421.5,
+      "minTrainingLoadChronic": 224.8,
+      "dailyTrainingLoadChronic": 281,
+      "dailyAcuteChronicWorkloadRatio": 1.2
+     },
+     "primaryTrainingDevice": true
+    }
+   },
+   "recordedDevices": [
+    {
+     "category": 0
+    }
+   ],
+   "showSelector": false,
+   "lastPrimarySyncDate": "2026-10-15"
+  },
+  "heatAltitudeAcclimationDTO": null
+ },
+ "max_metrics": []
+}

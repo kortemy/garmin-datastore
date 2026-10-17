@@ -177,6 +177,18 @@ def cmd_call(args: argparse.Namespace) -> None:
         sys.exit(f"HTTP {e.code}: {e.read().decode(errors='replace')[:500]}")
 
 
+def cmd_tick(args: argparse.Namespace) -> None:
+    """Run one sync tick on this machine (same engine as Vercel; useful for debugging)."""
+    import json
+    import logging
+
+    logging.basicConfig(level=logging.INFO)
+    load_env_into_process()
+    from gds import engine
+
+    print(json.dumps(engine.run_tick(trigger=args.trigger), indent=2, default=str))
+
+
 def cmd_connector_url(args: argparse.Namespace) -> None:
     load_env_into_process()
     print(f"{_base_url(args)}/s/{os.environ['MCP_PATH_SECRET']}/mcp")
@@ -195,6 +207,9 @@ def main() -> None:
     p_call.add_argument("--body", default=None, help="JSON body")
     p_call.add_argument("--base", default=None, help="deployed app URL (or GDS_BASE_URL)")
     p_call.set_defaults(func=cmd_call)
+    p_tick = sub.add_parser("tick", help="run one sync tick locally")
+    p_tick.add_argument("--trigger", default="local_cli")
+    p_tick.set_defaults(func=cmd_tick)
     p_url = sub.add_parser("connector-url", help="print the Claude connector URL (contains a secret)")
     p_url.add_argument("--base", default=None, help="deployed app URL (or GDS_BASE_URL)")
     p_url.set_defaults(func=cmd_connector_url)

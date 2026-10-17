@@ -1,4 +1,4 @@
-"""Vercel entrypoint (M0 spike): health, tick, Garmin spike endpoints, and a minimal MCP server."""
+"""Vercel entrypoint: health, scheduler tick, manual sync, and the MCP connector."""
 
 import hmac
 import os
@@ -11,12 +11,16 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel
 
-from gds import spike
+from gds import engine, spike, status
 from gds.config import settings
+from gds.db import connect
 
 mcp = MCPServer(
     "garmin-datastore",
-    instructions="M0 spike connector for garmin-datastore. Tools only report spike status for now.",
+    instructions=(
+        "Garmin Connect data synced into Supabase. Call get_sync_status first to see how fresh "
+        "the data is; say so plainly if data is missing or stale."
+    ),
 )
 
 
@@ -29,16 +33,17 @@ def ping(note: str = "") -> str:
 
 
 @mcp.tool()
-def spike_status() -> dict[str, Any]:
-    """Latest scheduler ticks, Garmin spike results, and token state (no secrets)."""
-    return spike.status()
+def get_sync_status() -> dict[str, Any]:
+    """How fresh and complete the Garmin data is: account status, last successful sync,
+    days covered, backlog, recent sync runs, and any failing items."""
+    return status.sync_status()
 
 
 mcp_app = mcp.streamable_http_app(
     streamable_http_path="/mcp",
     stateless_http=True,
     json_response=True,
-    # Vercel terminates TLS and sets the Host header; the secret path is the guard in M0.
+    # Vercel terminates TLS and sets the Host header; the secret path is the guard until OAuth (M4).
     transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     host="0.0.0.0",
 )
@@ -69,27 +74,30 @@ def health() -> dict[str, str]:
 
 class TickBody(BaseModel):
     source: str = "manual"
-    sleep_s: float = 0
 
 
 @app.post("/api/tick")
 def tick(body: TickBody, x_gds_secret: str | None = Header(default=None)) -> dict[str, Any]:
-    """M0: record that the scheduler reached us, optionally outliving the caller's timeout."""
+    """Called every 10 min by Supabase pg_cron (fire-and-forget) and by the GitHub backup."""
     _check_secret(x_gds_secret)
-    spike.record_tick(body.source, "start", {"sleep_s": body.sleep_s})
-    if body.sleep_s:
-        time.sleep(min(body.sleep_s, 60))
-        spike.record_tick(body.source, "end", {"sleep_s": body.sleep_s})
-    return {"status": "ok"}
+    return engine.run_tick(trigger=body.source[:40])
 
 
-@app.post("/api/spike/garmin")
-def spike_garmin(days: int = 2, x_gds_secret: str | None = Header(default=None)) -> dict[str, Any]:
+class SyncBody(BaseModel):
+    domain: str | None = None
+    start: str | None = None  # YYYY-MM-DD
+    end: str | None = None
+
+
+@app.post("/api/sync")
+def sync(body: SyncBody, x_gds_secret: str | None = Header(default=None)) -> dict[str, Any]:
+    """FR-9: re-queue matching units at top priority, then run a tick right away."""
     _check_secret(x_gds_secret)
-    return spike.garmin_probe(days=min(days, 3))
-
-
-@app.post("/api/spike/refresh")
-def spike_refresh(x_gds_secret: str | None = Header(default=None)) -> dict[str, Any]:
-    _check_secret(x_gds_secret)
-    return spike.forced_refresh()
+    with connect() as conn:
+        acct = conn.execute(
+            "select id from garmin.accounts where label = %s", (settings().account_label,)
+        ).fetchone()
+        if not acct:
+            raise HTTPException(status_code=404, detail="no account")
+        queued = engine.request_resync(conn, acct["id"], body.domain, body.start, body.end)
+    return {"queued": queued, "tick": engine.run_tick(trigger="manual_sync")}

@@ -1,0 +1,317 @@
+{
+ "calendarDate": "2026-10-15",
+ "startTimestampGMT": "2026-10-14T22:00:00.0",
+ "endTimestampGMT": "2026-10-15T22:00:00.0",
+ "startTimestampLocal": "2026-10-15T00:00:00.0",
+ "endTimestampLocal": "2026-10-16T00:00:00.0",
+ "sleepStartTimestampGMT": "2026-10-14T21:24:07.0",
+ "sleepEndTimestampGMT": "2026-10-15T05:45:07.0",
+ "sleepStartTimestampLocal": "2026-10-14T23:24:07.0",
+ "sleepEndTimestampLocal": "2026-10-15T07:45:07.0",
+ "tomorrowSleepStartTimestampGMT": "2026-10-15T21:49:18.0",
+ "tomorrowSleepEndTimestampGMT": "2026-10-16T05:26:12.0",
+ "tomorrowSleepStartTimestampLocal": "2026-10-15T23:49:18.0",
+ "tomorrowSleepEndTimestampLocal": "2026-10-16T07:26:12.0",
+ "lowestRespirationValue": 7.0,
+ "highestRespirationValue": 22.0,
+ "avgWakingRespirationValue": 14.0,
+ "avgSleepRespirationValue": 14.0,
+ "avgTomorrowSleepRespirationValue": 17.0,
+ "respirationValueDescriptorsDTOList": [
+  {
+   "index": 0,
+   "key": "timestamp"
+  },
+  {
+   "index": 1,
+   "key": "respiration"
+  }
+ ],
+ "respirationValuesArray": [
+  [
+   1792015320000,
+   16.0
+  ],
+  [
+   1792015440000,
+   18.0
+  ],
+  [
+   1792015560000,
+   17.0
+  ],
+  [
+   1792015680000,
+   15.0
+  ],
+  [
+   1792015800000,
+   15.0
+  ],
+  [
+   1792015920000,
+   16.0
+  ],
+  [
+   1792016040000,
+   17.0
+  ],
+  [
+   1792016160000,
+   16.0
+  ],
+  [
+   1792016280000,
+   16.0
+  ],
+  [
+   1792016400000,
+   18.0
+  ],
+  [
+   1792016520000,
+   16.0
+  ],
+  [
+   1792016640000,
+   16.0
+  ],
+  [
+   1792016760000,
+   13.0
+  ],
+  [
+   1792016880000,
+   15.0
+  ],
+  [
+   1792017000000,
+   14.0
+  ],
+  [
+   1792017120000,
+   14.0
+  ],
+  [
+   1792017240000,
+   17.0
+  ],
+  [
+   1792017360000,
+   14.0
+  ],
+  [
+   1792017480000,
+   11.0
+  ],
+  [
+   1792017600000,
+   12.0
+  ],
+  [
+   1792017720000,
+   14.0
+  ],
+  [
+   1792017840000,
+   11.0
+  ],
+  [
+   1792017960000,
+   10.0
+  ],
+  [
+   1792018080000,
+   10.0
+  ],
+  [
+   1792018200000,
+   15.0
+  ],
+  [
+   1792018320000,
+   15.0
+  ],
+  [
+   1792018440000,
+   10.0
+  ],
+  [
+   1792018560000,
+   12.0
+  ],
+  [
+   1792018680000,
+   17.0
+  ],
+  [
+   1792018800000,
+   13.0
+  ]
+ ],
+ "respirationAveragesValueDescriptorDTOList": [
+  {
+   "respirationAveragesValueDescriptorIndex": 0,
+   "respirationAveragesValueDescriptionKey": "timestamp"
+  },
+  {
+   "respirationAveragesValueDescriptorIndex": 1,
+   "respirationAveragesValueDescriptionKey": "averageRespirationValue"
+  },
+  {
+   "respirationAveragesValueDescriptorIndex": 2,
+   "respirationAveragesValueDescriptionKey": "highRespirationValue"
+  },
+  {
+   "respirationAveragesValueDescriptorIndex": 3,
+   "respirationAveragesValueDescriptionKey": "lowRespirationValue"
+  }
+ ],
+ "respirationAveragesValuesArray": [
+  [
+   1792018800000,
+   14.51,
+   19.0,
+   8.0
+  ],
+  [
+   1792022400000,
+   16.63,
+   20.0,
+   12.0
+  ],
+  [
+   1792026000000,
+   14.17,
+   18.0,
+   9.0
+  ],
+  [
+   1792029600000,
+   12.33,
+   17.0,
+   7.0
+  ],
+  [
+   1792033200000,
+   15.79,
+   20.0,
+   9.0
+  ],
+  [
+   1792036800000,
+   14.41,
+   20.0,
+   10.0
+  ],
+  [
+   1792040400000,
+   12.67,
+   19.0,
+   7.0
+  ],
+  [
+   1792044000000,
+   14.31,
+   22.0,
+   8.0
+  ],
+  [
+   1792047600000,
+   14.4,
+   19.0,
+   9.0
+  ],
+  [
+   1792051200000,
+   14.0,
+   19.0,
+   9.0
+  ],
+  [
+   1792054800000,
+   14.87,
+   20.0,
+   10.0
+  ],
+  [
+   1792058400000,
+   13.62,
+   20.0,
+   7.0
+  ],
+  [
+   1792062000000,
+   13.85,
+   19.0,
+   9.0
+  ],
+  [
+   1792065600000,
+   14.25,
+   21.0,
+   8.0
+  ],
+  [
+   1792069200000,
+   15.39,
+   19.0,
+   12.0
+  ],
+  [
+   1792072800000,
+   13.43,
+   19.0,
+   9.0
+  ],
+  [
+   1792076400000,
+   13.0,
+   19.0,
+   8.0
+  ],
+  [
+   1792080000000,
+   13.55,
+   19.0,
+   8.0
+  ],
+  [
+   1792083600000,
+   14.07,
+   20.0,
+   8.0
+  ],
+  [
+   1792087200000,
+   14.33,
+   22.0,
+   8.0
+  ],
+  [
+   1792090800000,
+   13.63,
+   19.0,
+   7.0
+  ],
+  [
+   1792094400000,
+   14.6,
+   20.0,
+   11.0
+  ],
+  [
+   1792098000000,
+   14.45,
+   20.0,
+   9.0
+  ],
+  [
+   1792101600000,
+   15.75,
+   21.0,
+   8.0
+  ]
+ ],
+ "respirationVersion": 200
+}
