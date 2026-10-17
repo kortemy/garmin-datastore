@@ -29,5 +29,16 @@ def sync_status() -> dict[str, Any]:
                where account_id = %s and status = 'failed' order by scope_key desc limit 10""",
             (health["account_id"],),
         ).fetchall()
+        domains = conn.execute(
+            """select state, count(*) as domains from garmin.v_domain_coverage
+               where account_id = %s group by state""",
+            (health["account_id"],),
+        ).fetchall()
     health.pop("account_id", None)
-    return {"health": health, "coverage": coverage, "recent_runs": runs, "failed_units": failing}
+    return {
+        "health": health,
+        "coverage": coverage,
+        "domains_by_state": {d["state"]: d["domains"] for d in domains},
+        "recent_runs": runs,
+        "failed_units": failing,
+    }

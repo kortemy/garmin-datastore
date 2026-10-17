@@ -599,3 +599,34 @@ differed.
 - **Full backfill** from 2025-01-01: 10,480 daily + 1,633 activity units. It runs
   unattended at ~200 units per 10-minute tick (~10 h total); progress is in
   `v_sync_health.backfill_pct`.
+
+## 18. M3 results (2026-10-17)
+
+- **179 domains in total:** 16 daily, 53 monthly range, 96 snapshot, 2 per-entity,
+  1 activity index, 11 per-activity. `garmin.v_domain_coverage` audits each one
+  (`synced` / `empty` / `in_progress` / `failing`). At the end of M3: 81 synced,
+  26 explicitly empty, 72 in progress (the history backfill), **0 failing**.
+- **New typed data:** weigh-ins (grams → kg), blood pressure (mapped defensively, no
+  readings yet; verify with the first write in M5), endurance/hill score, VO2max history
+  (121 days), calendar items incl. naps and 2 months of planned workouts, race events,
+  Body Battery events, and `performance_metrics` (race predictions, lactate threshold HR +
+  raw speed, running FTP, fitness age). Snapshot lists (devices, gear + stats, PRs,
+  goals, badges, workouts + full step definitions, plans, courses, profile, zones) are
+  `entities`, **replaced per kind** so deletions in Garmin propagate.
+- **Unit quirks found:** weights in grams; calendar activities in ms and cm while naps
+  are in seconds; naps have no id (keyed by start time); weather in °F/mph; lactate
+  threshold speed in an undocumented unit (stored raw).
+- **Window limits:** five `get_daily_*_stats` endpoints reject a month, so they're fetched
+  in 7-day chunks, and any range endpoint that returns 400 for a month falls back to
+  chunks automatically.
+- **Not synced (documented in code):** ECG and hourly intensity minutes (rejected for any
+  input), daily fitness age range (bad parameter semantics; fitness age comes from the
+  daily endpoint instead), `get_activities` (the index covers it), `get_sync_timestamp`
+  (noise), `get_full_name` (duplicate of profile).
+- **Planner:** unit creation now runs only when the day, backfill start or registry
+  changes (`accounts.planned_signature`); ordinary ticks skip the ~13k-row check.
+- **Renormalize from raw:** `gds renormalize <domain…>` rebuilds typed rows from stored
+  payloads with zero Garmin calls; used to map Body Battery events and fitness age after
+  the fact (FR-2 in practice).
+- **Deploy race:** a tick on the previous build saw units for domains it didn't know and
+  failed them. Unknown domains are now skipped and retried (version skew), never failed.
