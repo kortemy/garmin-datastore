@@ -576,3 +576,26 @@ differed.
   `POST /api/alerts/test` and `select garmin.watchdog(true)` send test emails through each
   path; both were delivered on 2026-10-17. Resend's API sits behind Cloudflare and
   rejects urllib's default User-Agent (error 1010), so the app sends its own.
+
+## 17. M2 results (2026-10-17, backfill in progress)
+
+- **Activities: 171 indexed, matching Garmin's own `count_activities()` (171).** First
+  activity 2025-02-09. `activity_index` has two units: `all` (full history, refreshed
+  weekly to pick up edits) and `recent` (newest 30, every incremental pass). Activities
+  that started in the last 2 days have their sub-resources re-fetched, since names, notes
+  and RPE get edited after the fact.
+- **11 per-activity domains:** summary detail (description, RPE, feel), laps, HR zones,
+  power zones (only if the activity has power), exercise sets (strength/cardio only),
+  weather (outdoor only), gear, the original FIT zip, plus raw-only details, typed
+  splits and split summaries. Units that can't exist are never created
+  (`units_for()`), which saves ~25% of the requests.
+- **FIT files in Postgres** (`activity_files`, `bytea`, TOAST off): 171 files =
+  9.8 MB (about 58 KB each), all downloaded on Vercel in one tick. Same reasoning as raw
+  JSON (§4.5): small, transactional, no second secret.
+- **Weather** comes from Garmin in °F / mph and is stored as given; `temp_c` and
+  `apparent_temp_c` are generated columns.
+- **Fixtures** are scrubbed of owner name/ids, GPS coordinates (fixed placeholders)
+  and place names (`scripts/make_fixtures.py`), so the repo stays publishable.
+- **Full backfill** from 2025-01-01: 10,480 daily + 1,633 activity units. It runs
+  unattended at ~200 units per 10-minute tick (~10 h total); progress is in
+  `v_sync_health.backfill_pct`.
