@@ -27,6 +27,8 @@ OPTIONAL_VARS = {
     "ALERT_EMAIL": "gds_alert_email",
     "ALERT_FROM": "gds_alert_from",
 }
+# Optional, Vercel only: connector OAuth (owner password hash, public base URL).
+VERCEL_ONLY_VARS = ["OWNER_PASSWORD_HASH", "GDS_BASE_URL", "LEGACY_SECRET_CONNECTOR"]
 
 
 def _vault_upsert(conn, name: str, value: str, description: str) -> None:
@@ -119,7 +121,7 @@ def cmd_setup(args: argparse.Namespace) -> None:
         print(f"Linking Vercel project '{args.project}'...")
         subprocess.run(link, cwd=ROOT, check=True)
 
-    for name in VERCEL_VARS + optional:
+    for name in VERCEL_VARS + optional + [k for k in VERCEL_ONLY_VARS if env.get(k)]:
         print(f"Setting Vercel env {name} (production)...", end=" ", flush=True)
         subprocess.run(
             [vercel, "env", "add", name, "production", "--force", "--sensitive", "--yes"],
@@ -191,6 +193,23 @@ def cmd_call(args: argparse.Namespace) -> None:
         sys.exit(f"HTTP {e.code}: {e.read().decode(errors='replace')[:500]}")
 
 
+def cmd_owner_password(_: argparse.Namespace) -> None:
+    """Set the password that authorizes Claude (or any MCP client) to connect. Only its
+    scrypt hash is stored (OWNER_PASSWORD_HASH in .env); run `setup` to push it to Vercel."""
+    from gds.oauth import hash_password
+
+    print("\nOwner password for the Claude connector (12+ characters). Input is hidden.")
+    first = getpass.getpass("New owner password: ")
+    if len(first) < 12:
+        sys.exit("Too short: use at least 12 characters.")
+    if getpass.getpass("Repeat: ") != first:
+        sys.exit("The two entries don't match.")
+    env = read_env()
+    env["OWNER_PASSWORD_HASH"] = hash_password(first)
+    write_env(env)
+    print("Saved the hash to .env. Next: uv run python -m gds.cli setup   (pushes it to Vercel)")
+
+
 def cmd_tick(args: argparse.Namespace) -> None:
     """Run one sync tick on this machine (same engine as Vercel; useful for debugging)."""
     import json
@@ -234,6 +253,8 @@ def main() -> None:
     p_call.add_argument("--body", default=None, help="JSON body")
     p_call.add_argument("--base", default=None, help="deployed app URL (or GDS_BASE_URL)")
     p_call.set_defaults(func=cmd_call)
+    sub.add_parser("owner-password", help="set the connector owner password (stores a hash)").set_defaults(
+        func=cmd_owner_password)
     p_tick = sub.add_parser("tick", help="run one sync tick locally")
     p_tick.add_argument("--trigger", default="local_cli")
     p_tick.set_defaults(func=cmd_tick)

@@ -13,6 +13,9 @@ dependencies = [
     "cryptography>=43",
     "mcp>=1.10",
     "tzdata>=2024.1",
+    "fitdecode>=0.10",
+    "python-multipart>=0.0.9",
+    "anyio>=4",
 ]
 
 [dependency-groups]
