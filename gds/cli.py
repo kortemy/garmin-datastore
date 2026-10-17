@@ -56,23 +56,31 @@ def cmd_setup(args: argparse.Namespace) -> None:
 
     env = read_env()
 
-    if not env.get("DATABASE_URL"):
-        print(
-            "\nPaste your Supabase TRANSACTION POOLER connection string\n"
-            "(Supabase dashboard → Connect → Transaction pooler, port 6543),\n"
-            "with [YOUR-PASSWORD] replaced by your database password. Input is hidden."
+    url = env.get("DATABASE_URL", "")
+    if not url or "YOUR-PASSWORD" in url:
+        sys.exit(
+            "\nDATABASE_URL in .env still needs your database password.\n"
+            "Open .env, replace [YOUR-PASSWORD] with it, save, and run setup again."
         )
-        env["DATABASE_URL"] = getpass.getpass("DATABASE_URL: ").strip()
 
     print("Checking the database connection...", end=" ", flush=True)
-    with psycopg.connect(env["DATABASE_URL"], prepare_threshold=None) as conn:
-        conn.execute("select 1")
+    try:
+        with psycopg.connect(url, prepare_threshold=None, connect_timeout=10) as conn:
+            conn.execute("select 1")
+    except psycopg.OperationalError as e:
+        reason = str(e).strip().splitlines()[-1]
+        sys.exit(f"failed.\n{reason}\nCheck the password in .env (special characters must be URL-encoded).")
     print("ok")
 
-    env.setdefault("TOKEN_ENC_KEY", crypto.new_key())
-    env.setdefault("TICK_SECRET", secrets.token_urlsafe(32))
-    env.setdefault("MCP_PATH_SECRET", secrets.token_urlsafe(24))
-    env.setdefault("GDS_ACCOUNT_LABEL", "default")
+    generated = {
+        "TOKEN_ENC_KEY": crypto.new_key,
+        "TICK_SECRET": lambda: secrets.token_urlsafe(32),
+        "MCP_PATH_SECRET": lambda: secrets.token_urlsafe(24),
+    }
+    for name, make in generated.items():
+        if not env.get(name):
+            env[name] = make()
+    env["GDS_ACCOUNT_LABEL"] = env.get("GDS_ACCOUNT_LABEL") or "default"
     write_env(env)
     print(f"Wrote {ENV_FILE.name} (git-ignored).")
 
