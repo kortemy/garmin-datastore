@@ -520,11 +520,13 @@ differed.
 
 ## 15. Open technical questions: M0 results (2026-10-17)
 
+**Verdict: go.** Vercel ↔ Garmin works, so the architecture stands as designed.
+
 | # | Question | Result |
 |---|---|---|
 | 1 | Does Garmin accept DI-token requests from Vercel IPs? | **Yes.** From `dub1` (AWS eu-west-1): 51 requests → 50 ok + 1 empty, then 32/32 ok on a second run. Median 166 ms, no 429/403 at ~1 req/s |
 | 2 | Do refresh tokens rotate? | **Yes.** A forced refresh returned a new refresh token, the next call worked, and the persisted token worked on a fresh run. **The single-flight broker (§7.2) is required.** Access-token lifetime is ~20–21.5 h |
-| 3 | Do cloud scheduled tasks get custom connectors? | Chat ✅ (Claude chat and Claude Code both called `ping`). Scheduled task: *pending* |
+| 3 | Do cloud scheduled tasks get custom connectors? | **Yes.** A Claude chat, Claude Code, and a **cloud scheduled task** all called `ping` (rows logged 12:11–12:18 UTC). Tested with the M0 secret-URL connector. **Re-test once OAuth lands (M4)** |
 | 4 | Does `curl_cffi` load on Vercel? | **Yes** (0.16.3) |
 | 5 | Does Vercel build from `pyproject.toml` + `uv.lock`? | **Yes.** Zero-config FastAPI with `[tool.vercel] entrypoint = "gds.app:app"`. The package lives at repo root (`gds/`), not `src/` |
 | — | Does `pg_net` dropping the request stop the tick? | **No.** With a 5 s `pg_net` timeout, the tick kept running and finished 20 s later. The scheduler is fire-and-forget |
