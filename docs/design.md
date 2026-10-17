@@ -565,6 +565,10 @@ differed.
   37-day window (592 units) needs about 4 ticks.
 - **Scheduling:** `gds_tick` every 10 min. Incremental passes (last 3 days) every 3 h;
   other ticks drain the backlog or exit in about a second.
+- **Domain:** production is served at **https://gds.lilic.dev** (Vercel custom domain).
+  The `pg_cron` tick URL (Vault `gds_tick_url`), the CLI (`GDS_BASE_URL` in `.env`), and
+  the Claude connector all use it. The `*.vercel.app` alias still answers, with the same
+  secret checks. The OAuth issuer (M4) will be this domain.
 - **Alerting:** app alerts (re-auth needed, repeated 403s) and a daily in-database
   watchdog (`garmin.watchdog()`, 06:00 UTC via `pg_cron` + `pg_net` → Resend). Both
   record to `garmin.alerts` and email once `RESEND_API_KEY` / `ALERT_EMAIL` are set.

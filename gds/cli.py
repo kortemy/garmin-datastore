@@ -2,8 +2,9 @@
 
     uv run python -m gds.cli setup    # secrets: .env, Vercel env vars, Supabase Vault
     uv run python -m gds.cli auth     # one-time Garmin login, stores an encrypted token
-    uv run python -m gds.cli call spike/garmin --base https://<app>.vercel.app
-    uv run python -m gds.cli connector-url --base https://<app>.vercel.app
+    uv run python -m gds.cli tick             # one sync tick on this machine
+    uv run python -m gds.cli call tick        # POST to the deployed app (GDS_BASE_URL)
+    uv run python -m gds.cli connector-url    # Claude connector URL (contains a secret)
 
 Secrets are typed into hidden prompts or generated locally. They are never printed.
 """
@@ -162,7 +163,7 @@ def cmd_auth(_: argparse.Namespace) -> None:
 def _base_url(args: argparse.Namespace) -> str:
     base = args.base or os.environ.get("GDS_BASE_URL", "")
     if not base:
-        sys.exit("Pass --base https://<your-app>.vercel.app or set GDS_BASE_URL.")
+        sys.exit("Set GDS_BASE_URL in .env (your deployment's URL) or pass --base.")
     return base.rstrip("/")
 
 
@@ -172,7 +173,7 @@ def cmd_call(args: argparse.Namespace) -> None:
     import urllib.error
     import urllib.request
 
-    load_env_into_process()
+    load_env_into_process()  # also provides GDS_BASE_URL
     url = f"{_base_url(args)}/api/{args.path.lstrip('/')}"
     req = urllib.request.Request(
         url,
