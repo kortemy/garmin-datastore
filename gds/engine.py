@@ -39,6 +39,7 @@ class TickStats:
     unchanged: int = 0
     empty: int = 0
     failed: int = 0
+    skipped: int = 0
     per_domain: dict[str, int] = field(default_factory=dict)
 
 
@@ -238,10 +239,16 @@ def apply_rows(conn: psycopg.Connection, acct_id: uuid.UUID, rows: dict[str, Any
 def process_unit(conn: psycopg.Connection, src: Source, acct_id: uuid.UUID, unit: dict[str, Any]) -> str:
     """Fetch → hash → (if changed) store raw + normalised rows atomically. Returns the outcome."""
     domain = REGISTRY.get(unit["domain"])
-    if domain is None:  # domain removed from the registry
+    if domain is None:
+        # Usually version skew: an older deployment picked up a unit created by a newer one.
+        # Leave it pending for a later tick instead of failing it.
         with conn.transaction():
-            _mark(conn, acct_id, unit, "failed", error="unknown domain", attempts=MAX_ATTEMPTS)
-        return "failed"
+            conn.execute(
+                """update garmin.work_units set next_attempt_at = now() + interval '10 minutes', updated_at = now()
+                   where account_id = %s and domain = %s and scope_key = %s""",
+                (acct_id, unit["domain"], unit["scope_key"]),
+            )
+        return "skipped"
 
     now = dt.datetime.now(dt.UTC)
     try:
@@ -407,6 +414,7 @@ def run_tick(trigger: str) -> dict[str, Any]:
         finally:
             details["per_domain"] = stats.per_domain
             details["unchanged"] = stats.unchanged
+            details["skipped"] = stats.skipped
             details["seconds"] = round(time.monotonic() - started, 1)
             conn.execute(
                 """update garmin.sync_runs set finished_at = now(), status = %s, error = %s,
