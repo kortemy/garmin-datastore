@@ -571,4 +571,8 @@ differed.
   secret checks. The OAuth issuer (M4) will be this domain.
 - **Alerting:** app alerts (re-auth needed, repeated 403s) and a daily in-database
   watchdog (`garmin.watchdog()`, 06:00 UTC via `pg_cron` + `pg_net` → Resend). Both
-  record to `garmin.alerts` and email once `RESEND_API_KEY` / `ALERT_EMAIL` are set.
+  record to `garmin.alerts` and email from **`alerts@mail.lilic.dev`** (Resend domain,
+  EU region, verified, sending-only key restricted to that domain).
+  `POST /api/alerts/test` and `select garmin.watchdog(true)` send test emails through each
+  path; both were delivered on 2026-10-17. Resend's API sits behind Cloudflare and
+  rejects urllib's default User-Agent (error 1010), so the app sends its own.
