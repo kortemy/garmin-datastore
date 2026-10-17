@@ -11,7 +11,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel
 
-from gds import engine, spike, status
+from gds import alerts, engine, spike, status
 from gds.config import settings
 from gds.db import connect
 
@@ -81,6 +81,17 @@ def tick(body: TickBody, x_gds_secret: str | None = Header(default=None)) -> dic
     """Called every 10 min by Supabase pg_cron (fire-and-forget) and by the GitHub backup."""
     _check_secret(x_gds_secret)
     return engine.run_tick(trigger=body.source[:40])
+
+
+@app.post("/api/alerts/test")
+def alerts_test(x_gds_secret: str | None = Header(default=None)) -> dict[str, Any]:
+    """Send a test alert with the deployed configuration (checks the Vercel env vars)."""
+    _check_secret(x_gds_secret)
+    email_id = alerts.send_email(
+        "[garmin-datastore] test alert (app)",
+        "This is a test of garmin-datastore's alert path from the Vercel app.\nNo action needed.",
+    )
+    return {"sent": email_id is not None, "email_id": email_id}
 
 
 class SyncBody(BaseModel):
