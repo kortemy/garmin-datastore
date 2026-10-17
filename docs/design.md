@@ -658,3 +658,13 @@ differed.
   and `docs/claude/weekly-review-task.md` (FR-15).
 - SDK quirk: `/revoke` requires the `client_secret` form field to be present even for public
   clients.
+
+## 20. M7 results, partial (2026-10-17)
+
+- **Local path switched off (FR-16, criterion 7):** the Windows scheduled task
+  `Garmin Wellness Collector` (every 4 h, ran `../garmin-connect-mcp/wellness-report.cmd`:
+  `wellness_report.py` → Notion "Garmin Wellness Log") is unregistered. The Notion log no longer
+  updates; Supabase is the only store. The task definition is backed up to
+  `../garmin-connect-mcp/garmin-wellness-collector.task.xml` (`Register-ScheduledTask -Xml` to
+  restore).
+- **Still open:** archive the Notion database (not delete, per FR-16).

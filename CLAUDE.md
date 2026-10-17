@@ -2,7 +2,7 @@
 
 Syncs **all** Garmin Connect data into Supabase from a Vercel worker, and exposes it to Claude
 through an OAuth MCP connector. Read `docs/requirements.md` (what/why) and `docs/design.md`
-(how, plus per-milestone results in §15–§19) before changing anything.
+(how, plus per-milestone results in §15–§20) before changing anything.
 
 ## Status (2026-10-17)
 
@@ -11,7 +11,8 @@ through an OAuth MCP connector. Read `docs/requirements.md` (what/why) and `docs
 | M0 spike, M1 daily sync, M2 activities + FIT, M3 all other domains, M4 connector read tools + OAuth | **done, live** |
 | Full history backfill (from 2025-01-01) | running unattended via pg_cron; check `get_sync_status` / `garmin.v_sync_health` |
 | **M5 writes to Garmin** (W-1..W-8) | **next**, see "Starting M5" below |
-| M6 publish-readiness, M7 cut-over from Notion | later |
+| M7 cut-over from Notion | **partial**: local scheduled task + Notion sync off (design §20); Notion DB still to archive |
+| M6 publish-readiness | later |
 
 ## Where things run
 
