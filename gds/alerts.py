@@ -32,6 +32,8 @@ def send_email(subject: str, text: str, idempotency_key: str | None = None) -> s
         "Authorization": f"Bearer {s.resend_api_key}",
         "Content-Type": "application/json",
         "Idempotency-Key": idempotency_key or uuid.uuid4().hex,
+        # Resend sits behind Cloudflare, which rejects urllib's default User-Agent (error 1010).
+        "User-Agent": "garmin-datastore/0.1 (+https://github.com/kortemy/garmin-datastore)",
     }
     for attempt in (1, 2):
         try:
