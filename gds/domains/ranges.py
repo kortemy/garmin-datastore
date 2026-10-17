@@ -212,19 +212,21 @@ def _events(raw: Any, key: str) -> Rows:
 
 # ---------------------------------------------------------------- registry
 
-register(Domain("body_composition", "range", range_fetch("get_body_composition"), _weigh_ins,
-                priority=6, refresh_hours=DAILY_REFRESH_H))
-register(Domain("blood_pressure", "range", range_fetch("get_blood_pressure"), _blood_pressure,
-                priority=6, refresh_hours=DAILY_REFRESH_H))
-register(Domain("endurance_score", "range", range_fetch("get_endurance_score", False, "daily"), _endurance,
-                priority=5, refresh_hours=DAILY_REFRESH_H))
-register(Domain("hill_score", "range", range_fetch("get_hill_score"), _hill, priority=5, refresh_hours=DAILY_REFRESH_H))
-register(Domain("vo2max_history", "range", range_fetch("get_max_metrics_range"), _vo2max_history,
-                priority=5, refresh_hours=DAILY_REFRESH_H))
-register(Domain("calendar_month", "range", _fetch_calendar, _calendar, priority=6,
-                refresh_hours=DAILY_REFRESH_H, months_ahead=2))
-register(Domain("calendar_events", "range", range_fetch("get_calendar_events"), _events,
-                priority=4, refresh_hours=DAILY_REFRESH_H))
+# Typed monthly domains are cheap (~one request per month) and high value, so they run
+# ahead of the daily backfill.
+TYPED_PRIORITY = 40
+TYPED = [
+    ("body_composition", range_fetch("get_body_composition"), _weigh_ins, 0),
+    ("blood_pressure", range_fetch("get_blood_pressure"), _blood_pressure, 0),
+    ("endurance_score", range_fetch("get_endurance_score", False, "daily"), _endurance, 0),
+    ("hill_score", range_fetch("get_hill_score"), _hill, 0),
+    ("vo2max_history", range_fetch("get_max_metrics_range"), _vo2max_history, 0),
+    ("calendar_month", _fetch_calendar, _calendar, 2),
+    ("calendar_events", range_fetch("get_calendar_events"), _events, 0),
+]
+for _name, _fetch, _norm, _ahead in TYPED:
+    register(Domain(_name, "range", _fetch, _norm, priority=TYPED_PRIORITY, refresh_hours=DAILY_REFRESH_H,
+                    months_ahead=_ahead))
 
 # Raw-only range endpoints (aggregates and histories; full payloads kept, FR-2).
 RAW_RANGE = [
