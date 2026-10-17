@@ -110,11 +110,14 @@ def cmd_setup(args: argparse.Namespace) -> None:
     print("ok" + (f" (+ {', '.join(optional)})" if optional else ""))
 
     vercel = _vercel()
-    link = [vercel, "link", "--yes", "--project", args.project]
-    if args.team:
-        link += ["--team", args.team]
-    print(f"Linking Vercel project '{args.project}'...")
-    subprocess.run(link, cwd=ROOT, check=True)
+    if (ROOT / ".vercel" / "project.json").exists():
+        print("Vercel project already linked.")
+    else:
+        link = [vercel, "link", "--yes", "--project", args.project]
+        if args.team:
+            link += ["--scope", args.team]
+        print(f"Linking Vercel project '{args.project}'...")
+        subprocess.run(link, cwd=ROOT, check=True)
 
     for name in VERCEL_VARS + optional:
         print(f"Setting Vercel env {name} (production)...", end=" ", flush=True)
