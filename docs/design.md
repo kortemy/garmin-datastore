@@ -630,3 +630,31 @@ differed.
   the fact (FR-2 in practice).
 - **Deploy race:** a tick on the previous build saw units for domains it didn't know and
   failed them. Unknown domains are now skipped and retried (version skew), never failed.
+
+## 19. M4 results (2026-10-17)
+
+- **Connector: `https://gds.lilic.dev/mcp`, OAuth 2.1.** The MCP SDK serves `/authorize`,
+  `/token`, `/register` (dynamic client registration), `/revoke` and the RFC 8414 / RFC 9728
+  metadata; `gds/oauth.py` stores clients, pending requests, codes and tokens in Postgres
+  (SHA-256 hashes only). PKCE S256; single-use login requests and codes; opaque tokens, 1 h
+  access / 90 d refresh rotated on every use (old pair revoked); revocation by token family.
+- **Owner login:** `/oauth/login` shows which client is asking and accepts the owner password
+  (scrypt hash in `OWNER_PASSWORD_HASH`, set with `gds owner-password`); 10 failures/hour lock
+  it, and each failure costs 1 s.
+- **Verified end to end:** `scripts/oauth_e2e.py` (19 checks, local against the real DB:
+  registration → login → PKCE exchange → tool calls → refresh rotation → revocation, and the
+  reader role cannot read `garmin_tokens`), then live from **Claude chat, a cloud scheduled
+  task, and Claude Code**. This answers §15 question 3 for OAuth too.
+- **16 tools:** `get_sync_status`, `get_daily_wellness`, `get_sleep`, `get_intraday`,
+  `list_activities`, `get_activity`, `get_activity_streams` (FIT parsed with `fitdecode`;
+  running cadence doubled to steps/min), `get_trend`, `get_body`, `get_performance`,
+  `get_entities` (large kinds list ids/names; full documents per id, nulls dropped),
+  `get_calendar`, `describe_schema`, `query_sql`, `request_resync`, `ping`. Read tools run as
+  `gds_reader` in read-only transactions (5 s, 500 rows); `query_sql` additionally rejects
+  non-SELECT text for clearer errors. Tool errors use the SDK's `ToolError`.
+- **Legacy secret-path connector retired** (`LEGACY_SECRET_CONNECTOR=0`) and its secret
+  rotated.
+- **Fitness project prompts** for the connector: `docs/claude/fitness-project-instructions.md`
+  and `docs/claude/weekly-review-task.md` (FR-15).
+- SDK quirk: `/revoke` requires the `client_secret` form field to be present even for public
+  clients.
