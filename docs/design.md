@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft v0.1 — for review |
+| **Status** | v0.2: M0 spike results added (§15) |
 | **Date** | 2026-10-17 |
 | **Requirements** | [requirements.md](requirements.md) v0.3 |
 
@@ -518,11 +518,30 @@ differed.
 | **M6** | **Ops & publish-readiness** | Watchdog, backup tick, gitleaks, README setup guide, `gds doctor`, licence | Fresh-fork deploy following README only (criterion 6); forced-failure alert test (criterion 5) |
 | **M7** | **Cut-over** *(timing per D-6)* | Switch Fitness project fully; disable local scheduled task + Notion sync; archive Notion DB | Criterion 7 |
 
-## 15. Open technical questions (resolved in M0)
+## 15. Open technical questions: M0 results (2026-10-17)
 
-1. Does Garmin accept DI-token requests from Vercel IPs at our request rate?
-2. Whether refresh tokens rotate, and how long they last (access token: ~21.5 h, measured).
-3. Do Claude **cloud scheduled tasks** get access to custom (OAuth) connectors?
-4. Does `curl_cffi` load in Vercel's Python runtime?
-5. Does Vercel's Python runtime build from `pyproject.toml` + `uv.lock`, or do we
-   need an exported `requirements.txt`?
+| # | Question | Result |
+|---|---|---|
+| 1 | Does Garmin accept DI-token requests from Vercel IPs? | **Yes.** From `dub1` (AWS eu-west-1): 51 requests → 50 ok + 1 empty, then 32/32 ok on a second run. Median 166 ms, no 429/403 at ~1 req/s |
+| 2 | Do refresh tokens rotate? | **Yes.** A forced refresh returned a new refresh token, the next call worked, and the persisted token worked on a fresh run. **The single-flight broker (§7.2) is required.** Access-token lifetime is ~20–21.5 h |
+| 3 | Do cloud scheduled tasks get custom connectors? | Chat ✅ (Claude chat and Claude Code both called `ping`). Scheduled task: *pending* |
+| 4 | Does `curl_cffi` load on Vercel? | **Yes** (0.16.3) |
+| 5 | Does Vercel build from `pyproject.toml` + `uv.lock`? | **Yes.** Zero-config FastAPI with `[tool.vercel] entrypoint = "gds.app:app"`. The package lives at repo root (`gds/`), not `src/` |
+| — | Does `pg_net` dropping the request stop the tick? | **No.** With a 5 s `pg_net` timeout, the tick kept running and finished 20 s later. The scheduler is fire-and-forget |
+| — | Does `pg_cron` → Vercel work? | **Yes.** `gds_tick` runs every 10 min |
+
+**Other findings**
+
+- **Garmin login is rate-limited even from a home IP.** During `gds auth` the first two
+  login strategies (mobile + curl_cffi, mobile + requests) returned **429**, and a later
+  strategy succeeded. Re-auth may need retries. This confirms the rule that the cloud never
+  does password logins.
+- `mcp` resolved to **SDK 2.3** (`MCPServer`, not 1.x `FastMCP`). Its session manager can
+  start only once per process, so tests share one lifespan.
+- New Vercel projects default to Vercel Authentication on **all** `*.vercel.app` URLs.
+  The project is set to `prod_deployment_urls_and_all_previews`, so the production alias
+  is reachable and our own secrets protect the endpoints.
+- `vercel link`/`deploy` append `.vercel` and `.env*` to `.gitignore`. That's harmless
+  (`.env.example` is already tracked), so we leave it.
+- Windows: PowerShell blocks `.ps1` scripts (including npm's `vercel.ps1`) by default.
+  Call `vercel.cmd`.
