@@ -67,8 +67,7 @@ Supabase `pg_cron` (D-1).
 
 ```
 garmin-datastore/
-├─ api/index.py                  # Vercel entry: exposes the FastAPI app
-├─ src/gds/
+├─ gds/                          # package at repo root; Vercel entry = gds.app:app (M0)
 │  ├─ config.py                  # all settings from env (FR-21)
 │  ├─ app.py                     # FastAPI app: routes for tick, sync, health, mcp, oauth
 │  ├─ source/                    # FR-23 source adapter
@@ -106,6 +105,10 @@ so nothing is reachable through Supabase client keys (NFR-2).
 | `gds_worker` | sync engine, write tools | read/write on `garmin.*` |
 | `gds_reader` | MCP read tools and `query_sql` | `SELECT` on the curated views + typed tables only; `statement_timeout = 5s` |
 | `postgres` | migrations only | owner |
+
+> **M1 status:** `gds_reader` exists as a **NOLOGIN** role with read policies, entered via
+> `SET ROLE` (no extra password). The worker still connects as `postgres` through the
+> pooler. A dedicated `gds_worker` login role is deferred to M6 (publish-readiness).
 
 ### 4.2 Core / operational tables
 
@@ -157,7 +160,7 @@ create table garmin.intraday_series (
   start_utc      timestamptz not null, -- first sample
   utc_offset_min int not null,
   ts_offsets_s   int[] not null,       -- seconds since start_utc, one per sample
-  values         real[] not null,
+  vals           real[] not null,      -- ("values" is reserved in SQL)
   primary key (account_id, calendar_date, metric)
 );
 ```
@@ -173,19 +176,19 @@ than expanded into rows.
 
 ### 4.5 Raw storage
 
-Every Garmin response is gzipped and written to the private Storage bucket
-`garmin-raw` (FR-2):
+> **Changed in M1:** raw payloads live **in Postgres** (`garmin.raw_objects.payload_gz`,
+> gzip `bytea`, TOAST compression off) instead of a Storage bucket. The measured volume
+> (§13, ~50 MB for full history) fits the database comfortably. Raw data is written in
+> the **same transaction** as its normalised rows, and Storage would have needed a
+> second secret (service key) on Vercel. FIT files (M2) will be judged the same way.
 
-```
-raw/{account_id}/{domain}/{yyyy}/{mm}/{scope_key}.json.gz
-fit/{account_id}/{yyyy}/{activity_id}.zip
-```
-
-Only the **latest** version of each object is kept (Garmin is the source of truth).
-The `content_hash` in `raw_objects` lets the engine skip re-normalising and
-re-uploading unchanged payloads, which makes the frequent recent-window re-fetches
-cheap. Date-partitioned paths make "cold storage for data older than 1 year" (D-9) a
-simple move later.
+Every Garmin response is stored as canonical JSON, gzipped, keyed by
+`(account_id, domain, scope_key)` (FR-2). Only the **latest** version is kept, since
+Garmin is the source of truth. The SHA-256 `content_hash` on each work unit lets the
+engine skip re-normalising unchanged payloads, which keeps the frequent recent-window
+re-fetches cheap. If a normaliser throws, the raw payload is still saved and the unit
+retries, so a mapping bug never loses data. Cold storage for old data (D-9) would move
+rows by `scope_key` date.
 
 ### 4.6 Views for consumers
 
@@ -547,3 +550,21 @@ differed.
   (`.env.example` is already tracked), so we leave it.
 - Windows: PowerShell blocks `.ps1` scripts (including npm's `vercel.ps1`) by default.
   Call `vercel.cmd`.
+
+## 16. M1 results (2026-10-17)
+
+- **Parity with Notion: 100%.** Over the last 30 days, all 1,392 overlapping fields of
+  `v_daily_wellness` match the Notion Wellness Log exactly (`scripts/parity_check.py`).
+  The new store fills 18 values Notion had empty (mostly VO2max on days without a new
+  estimate) and keeps full-resolution intraday data instead of truncated hourly strings.
+- **Domains:** 16 daily domains. 12 are normalised (summary, sleep, HRV, readiness incl.
+  every intraday reading + morning flag, training status + VO2max, stress, Body Battery,
+  HR, respiration, steps, floors, SpO2, hydration). 4 are raw-only until M3
+  (intensity minutes, RHR, Body Battery events, fitness age).
+- **On Vercel:** one tick = ~150 units / ~210 requests in ~220 s, no 429s, so the
+  37-day window (592 units) needs about 4 ticks.
+- **Scheduling:** `gds_tick` every 10 min. Incremental passes (last 3 days) every 3 h;
+  other ticks drain the backlog or exit in about a second.
+- **Alerting:** app alerts (re-auth needed, repeated 403s) and a daily in-database
+  watchdog (`garmin.watchdog()`, 06:00 UTC via `pg_cron` + `pg_net` → Resend). Both
+  record to `garmin.alerts` and email once `RESEND_API_KEY` / `ALERT_EMAIL` are set.

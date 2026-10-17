@@ -20,6 +20,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = ROOT / ".env"
 VERCEL_VARS = ["DATABASE_URL", "TOKEN_ENC_KEY", "TICK_SECRET", "MCP_PATH_SECRET"]
+# Optional alerting settings: pushed to Vercel and mirrored into Vault for the DB watchdog.
+OPTIONAL_VARS = {
+    "RESEND_API_KEY": "gds_resend_api_key",
+    "ALERT_EMAIL": "gds_alert_email",
+    "ALERT_FROM": "gds_alert_from",
+}
+
+
+def _vault_upsert(conn, name: str, value: str, description: str) -> None:
+    row = conn.execute("select id from vault.secrets where name = %s", (name,)).fetchone()
+    if row:
+        conn.execute("select vault.update_secret(%s, %s)", (row[0], value))
+    else:
+        conn.execute("select vault.create_secret(%s, %s, %s)", (value, name, description))
 
 
 def read_env() -> dict[str, str]:
@@ -86,17 +100,13 @@ def cmd_setup(args: argparse.Namespace) -> None:
     write_env(env)
     print(f"Wrote {ENV_FILE.name} (git-ignored).")
 
-    print("Storing the tick secret in Supabase Vault...", end=" ", flush=True)
+    optional = [k for k in OPTIONAL_VARS if env.get(k)]
+    print("Storing secrets in Supabase Vault...", end=" ", flush=True)
     with psycopg.connect(env["DATABASE_URL"], prepare_threshold=None) as conn:
-        row = conn.execute("select id from vault.secrets where name = 'gds_tick_secret'").fetchone()
-        if row:
-            conn.execute("select vault.update_secret(%s, %s)", (row[0], env["TICK_SECRET"]))
-        else:
-            conn.execute(
-                "select vault.create_secret(%s, 'gds_tick_secret', 'garmin-datastore tick auth')",
-                (env["TICK_SECRET"],),
-            )
-    print("ok")
+        _vault_upsert(conn, "gds_tick_secret", env["TICK_SECRET"], "garmin-datastore tick auth")
+        for k in optional:
+            _vault_upsert(conn, OPTIONAL_VARS[k], env[k], f"garmin-datastore {k}")
+    print("ok" + (f" (+ {', '.join(optional)})" if optional else ""))
 
     vercel = _vercel()
     link = [vercel, "link", "--yes", "--project", args.project]
@@ -105,7 +115,7 @@ def cmd_setup(args: argparse.Namespace) -> None:
     print(f"Linking Vercel project '{args.project}'...")
     subprocess.run(link, cwd=ROOT, check=True)
 
-    for name in VERCEL_VARS:
+    for name in VERCEL_VARS + optional:
         print(f"Setting Vercel env {name} (production)...", end=" ", flush=True)
         subprocess.run(
             [vercel, "env", "add", name, "production", "--force", "--sensitive", "--yes"],
