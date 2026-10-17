@@ -1,0 +1,42 @@
+{
+ "activityId": 24448347816,
+ "lapDTOs": [
+  {
+   "startTimeGMT": "2026-09-21T19:04:55.0",
+   "distance": 879.09,
+   "duration": 4888.456,
+   "movingDuration": 713.0,
+   "elapsedDuration": 4888.456,
+   "averageSpeed": 0.18000000715255737,
+   "averageMovingSpeed": 1.232945339208231,
+   "maxSpeed": 6.586999893188477,
+   "calories": 1010.0,
+   "bmrCalories": 147.0,
+   "averageHR": 142.0,
+   "maxHR": 175.0,
+   "lapIndex": 1,
+   "lengthDTOs": [],
+   "connectIQMeasurement": [],
+   "intensityType": "ACTIVE",
+   "messageIndex": 0
+  }
+ ],
+ "eventDTOs": [
+  {
+   "startTimeGMT": "2026-09-21T19:04:54.0",
+   "startTimeGMTDoubleValue": 1790017494000.0,
+   "sectionTypeDTO": {
+    "key": "timerTrigger",
+    "sectionTypeKey": "TIMER_TRIGGER"
+   }
+  },
+  {
+   "startTimeGMT": "2026-09-21T19:04:55.0",
+   "startTimeGMTDoubleValue": 1790017495000.0,
+   "sectionTypeDTO": {
+    "key": "timerTrigger",
+    "sectionTypeKey": "TIMER_TRIGGER"
+   }
+  }
+ ]
+}

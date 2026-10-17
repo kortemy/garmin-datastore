@@ -1,0 +1,14 @@
+{
+ "issueDate": null,
+ "temp": null,
+ "apparentTemp": null,
+ "dewPoint": null,
+ "relativeHumidity": null,
+ "windDirection": null,
+ "windDirectionCompassPoint": null,
+ "windSpeed": null,
+ "windGust": null,
+ "latitude": 45.0,
+ "longitude": 20.0,
+ "weatherTypeDTO": null
+}

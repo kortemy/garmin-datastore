@@ -89,6 +89,21 @@ def plan(conn: psycopg.Connection, acct: dict[str, Any]) -> dict[str, Any]:
                on conflict do nothing""",
             (acct["id"], start, today, names, [REGISTRY[n].priority for n in names]),
         ).rowcount
+        # Activity index: "all" walks the full history (first run, then weekly to pick up
+        # edits), "recent" checks the newest page on every incremental pass.
+        created += conn.execute(
+            """insert into garmin.work_units (account_id, domain, scope_key, priority)
+               values (%s, 'activity_index', 'all', %s), (%s, 'activity_index', 'recent', %s)
+               on conflict do nothing""",
+            (acct["id"], REGISTRY["activity_index"].priority, acct["id"], PRIORITY_INCREMENTAL),
+        ).rowcount
+        conn.execute(
+            """update garmin.work_units
+               set status = 'pending', priority = %s, attempts = 0, next_attempt_at = now(), updated_at = now()
+               where account_id = %s and domain = 'activity_index' and scope_key = 'all' and status <> 'pending'
+                 and (last_fetched_at is null or last_fetched_at < now() - interval '7 days')""",
+            (REGISTRY["activity_index"].priority, acct["id"]),
+        )
         due = acct["last_incremental_at"] is None or (
             dt.datetime.now(dt.UTC) - acct["last_incremental_at"] >= dt.timedelta(hours=s.incremental_every_h)
         )
@@ -97,7 +112,9 @@ def plan(conn: psycopg.Connection, acct: dict[str, Any]) -> dict[str, Any]:
             queued = conn.execute(
                 """update garmin.work_units
                    set status = 'pending', priority = %s, attempts = 0, next_attempt_at = now(), updated_at = now()
-                   where account_id = %s and domain = any(%s) and scope_key >= %s""",
+                   where account_id = %s
+                     and ((domain = any(%s) and scope_key >= %s)
+                          or (domain = 'activity_index' and scope_key = 'recent'))""",
                 (PRIORITY_INCREMENTAL, acct["id"], names, window_start.isoformat()),
             ).rowcount
             conn.execute("update garmin.accounts set last_incremental_at = now() where id = %s", (acct["id"],))
@@ -169,7 +186,7 @@ def process_unit(conn: psycopg.Connection, src: Source, acct_id: uuid.UUID, unit
     except SourceError as e:
         return _fail(conn, acct_id, unit, str(e))
 
-    if raw in (None, [], {}):
+    if raw in (None, [], {}) or raw == b"":
         with conn.transaction():
             _mark(conn, acct_id, unit, "empty", fetched_at=now)
         return "empty"
@@ -187,9 +204,13 @@ def process_unit(conn: psycopg.Connection, src: Source, acct_id: uuid.UUID, unit
         rows, normalize_error = {}, f"normalize: {type(e).__name__}: {e}"[:300]
 
     with conn.transaction():
-        store.save_raw(conn, acct_id, unit["domain"], unit["scope_key"], data, digest)
+        if not domain.binary:  # binary payloads (FIT zips) are stored by their own table
+            store.save_raw(conn, acct_id, unit["domain"], unit["scope_key"], data, digest)
         for table, table_rows in rows.items():
-            store.upsert_rows(conn, acct_id, table, table_rows)
+            if table == "work_units":
+                store.ensure_units(conn, acct_id, table_rows)
+            else:
+                store.upsert_rows(conn, acct_id, table, table_rows)
         if normalize_error:
             # Raw is saved; keep the hash empty so a fixed normaliser reprocesses it.
             attempts = unit["attempts"] + 1
@@ -199,7 +220,8 @@ def process_unit(conn: psycopg.Connection, src: Source, acct_id: uuid.UUID, unit
                 next_attempt_at=now + backoff(attempts),
             )
             return "failed"
-        status = "empty" if domain.normalize and not rows else "done"
+        typed = {t: r for t, r in rows.items() if t != "work_units"}
+        status = "empty" if domain.normalize and not typed else "done"
         _mark(conn, acct_id, unit, status, content_hash=digest, fetched_at=now)
     return status
 

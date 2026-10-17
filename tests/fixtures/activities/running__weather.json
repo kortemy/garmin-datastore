@@ -1,0 +1,18 @@
+{
+ "issueDate": "2026-10-16T09:00:00.000+00:00",
+ "temp": 51,
+ "apparentTemp": 51,
+ "dewPoint": 42,
+ "relativeHumidity": 71,
+ "windDirection": 300,
+ "windDirectionCompassPoint": "wnw",
+ "windSpeed": 2,
+ "windGust": null,
+ "latitude": 45.0,
+ "longitude": 20.0,
+ "weatherTypeDTO": {
+  "weatherTypePk": null,
+  "desc": "Cloudy",
+  "image": null
+ }
+}

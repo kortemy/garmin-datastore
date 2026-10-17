@@ -18,12 +18,22 @@ TABLE_KEYS: dict[str, tuple[str, ...]] = {
     "training_readiness": ("account_id", "reading_utc"),
     "training_status": ("account_id", "calendar_date"),
     "intraday_series": ("account_id", "calendar_date", "metric"),
+    "activities": ("account_id", "activity_id"),
+    "activity_laps": ("account_id", "activity_id", "lap_index"),
+    "activity_zones": ("account_id", "activity_id", "zone_type", "zone"),
+    "activity_exercise_sets": ("account_id", "activity_id", "set_index"),
+    "activity_weather": ("account_id", "activity_id"),
+    "activity_files": ("account_id", "activity_id", "format"),
 }
 
 
 def encode_raw(payload: Any) -> tuple[bytes, str]:
-    """Canonical JSON bytes and their SHA-256, so unchanged payloads are detectable."""
-    data = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+    """Canonical bytes and their SHA-256, so unchanged payloads are detectable.
+    JSON payloads are canonicalised; binary payloads (FIT zips) are hashed as-is."""
+    if isinstance(payload, (bytes, bytearray)):
+        data = bytes(payload)
+    else:
+        data = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
     return data, hashlib.sha256(data).hexdigest()
 
 
@@ -44,7 +54,27 @@ def upsert_sql(table: str, columns: list[str]) -> sql.Composed:
 
 
 def _adapt(v: Any) -> Any:
-    return Jsonb(v) if isinstance(v, dict) else v
+    """dicts and lists of dicts → jsonb; lists of scalars stay Postgres arrays."""
+    if isinstance(v, dict) or (isinstance(v, list) and any(isinstance(x, dict) for x in v)):
+        return Jsonb(v)
+    return v
+
+
+def ensure_units(conn: psycopg.Connection, acct: uuid.UUID, units: list[dict[str, Any]]) -> int:
+    """Create work units a normaliser asked for; `requeue` ones are reset to pending."""
+    if not units:
+        return 0
+    with conn.cursor() as cur:
+        cur.executemany(
+            """insert into garmin.work_units (account_id, domain, scope_key, priority)
+               values (%s, %s, %s, %s)
+               on conflict (account_id, domain, scope_key) do update
+                 set status = 'pending', priority = greatest(garmin.work_units.priority, excluded.priority),
+                     attempts = 0, next_attempt_at = now(), updated_at = now()
+                 where %s and garmin.work_units.status <> 'pending'""",
+            [(acct, u["domain"], u["scope_key"], u.get("priority", 10), bool(u.get("requeue"))) for u in units],
+        )
+    return len(units)
 
 
 def upsert_rows(conn: psycopg.Connection, acct: uuid.UUID, table: str, rows: list[dict[str, Any]]) -> int:

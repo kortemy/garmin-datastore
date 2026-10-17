@@ -1,0 +1,110 @@
+{
+ "activityId": 24448347816,
+ "activityName": "Test Activity",
+ "isMultiSportParent": false,
+ "activityTypeDTO": {
+  "typeId": 215,
+  "typeKey": "soccer",
+  "parentTypeId": 206,
+  "isHidden": false,
+  "restricted": false,
+  "trimmable": true
+ },
+ "eventTypeDTO": {
+  "typeId": 9,
+  "typeKey": "uncategorized",
+  "sortOrder": 10
+ },
+ "accessControlRuleDTO": {
+  "typeId": 2,
+  "typeKey": "private"
+ },
+ "timeZoneUnitDTO": {
+  "unitId": 124,
+  "unitKey": "Europe/Paris",
+  "factor": 0.0,
+  "timeZone": "Europe/Paris"
+ },
+ "metadataDTO": {
+  "isOriginal": true,
+  "deviceApplicationInstallationId": 1016630,
+  "agentApplicationInstallationId": null,
+  "agentString": null,
+  "fileFormat": {
+   "formatId": 7,
+   "formatKey": "fit"
+  },
+  "associatedCourseId": null,
+  "lastUpdateDate": "2026-09-21T20:29:06.0",
+  "uploadedDate": "2026-09-21T20:29:06.0",
+  "videoUrl": null,
+  "hasPolyline": false,
+  "hasChartData": true,
+  "hasHrTimeInZones": true,
+  "hasPowerTimeInZones": false,
+  "userInfoDto": {
+   "userPro": false
+  },
+  "childIds": [],
+  "childActivityTypes": [],
+  "sensors": null,
+  "activityImages": [],
+  "manufacturer": "GARMIN",
+  "diveNumber": null,
+  "lapCount": 1,
+  "associatedWorkoutId": null,
+  "isAtpActivity": null,
+  "deviceMetaDataDTO": {
+   "deviceTypePk": 37087,
+   "deviceVersionPk": 1016630
+  },
+  "hasIntensityIntervals": false,
+  "hasSplits": false,
+  "eBikeMaxAssistModes": null,
+  "eBikeBatteryUsage": null,
+  "eBikeBatteryRemaining": null,
+  "eBikeAssistModeInfoDTOList": null,
+  "hasRunPowerWindData": null,
+  "calendarEventInfo": null,
+  "groupRideUUID": null,
+  "hasHeatMap": false,
+  "sessionResultType": "ORIGINAL",
+  "hasMultiDayActivities": false,
+  "personalRecord": false,
+  "gcj02": false,
+  "runPowerWindDataEnabled": null,
+  "elevationCorrected": false,
+  "autoCalcCalories": false,
+  "favorite": false,
+  "trimmed": false,
+  "manualActivity": false
+ },
+ "summaryDTO": {
+  "startTimeLocal": "2026-09-21T21:04:55.0",
+  "startTimeGMT": "2026-09-21T19:04:55.0",
+  "distance": 879.09,
+  "duration": 4888.456,
+  "movingDuration": 713.0,
+  "elapsedDuration": 4888.456,
+  "averageSpeed": 0.18000000715255737,
+  "averageMovingSpeed": 1.232945339208231,
+  "maxSpeed": 6.586999893188477,
+  "calories": 1010.0,
+  "bmrCalories": 147.0,
+  "averageHR": 142.0,
+  "maxHR": 175.0,
+  "minHR": 49.0,
+  "trainingEffect": 3.5,
+  "anaerobicTrainingEffect": 2.9000000953674316,
+  "aerobicTrainingEffectMessage": "IMPACTING_TEMPO_22",
+  "anaerobicTrainingEffectMessage": "MAINTAINING_FAST_FORCE_PRODUCTION_6",
+  "waterEstimated": 1074.0,
+  "trainingEffectLabel": "SPEED",
+  "activityTrainingLoad": 183.9796142578125,
+  "minActivityLapDuration": 4888.456,
+  "moderateIntensityMinutes": 13,
+  "vigorousIntensityMinutes": 54,
+  "steps": 5278,
+  "differenceBodyBattery": -11
+ }
+}

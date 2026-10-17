@@ -1,0 +1,19 @@
+[
+ {
+  "gearMakeName": "Other",
+  "gearModelName": "Unknown Shoes",
+  "gearTypeName": "Shoes",
+  "gearStatusName": "active",
+  "displayName": null,
+  "customMakeModel": "ASICS Novablast 6",
+  "imageNameLarge": null,
+  "imageNameMedium": null,
+  "imageNameSmall": null,
+  "dateBegin": "2026-08-24T00:00:00.0",
+  "dateEnd": null,
+  "maximumMeters": 500000.0,
+  "notified": false,
+  "createDate": "2026-08-24T10:40:08.0",
+  "updateDate": "2026-08-24T05:40:08.0"
+ }
+]
