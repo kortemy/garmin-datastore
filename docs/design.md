@@ -404,7 +404,9 @@ rejected with suggestions).
 Write-only: no Strava data is synced or stored (requirements §6). It reuses the M5 write
 path (`writes.execute`: dry run, idempotency key, `write_log`, undo).
 
-**Auth.** My own Strava API app (strava.com/settings/api). `STRAVA_CLIENT_ID` and
+**Auth.** My own Strava API app (strava.com/settings/api), "Authorization Callback Domain"
+set to `gds.lilic.dev` (a bare domain; Strava always allows `localhost`, which the CLI flow
+below uses, so the domain only matters for a possible hosted flow later). `STRAVA_CLIENT_ID` and
 `STRAVA_CLIENT_SECRET` go in `.env` → Vercel via `gds setup` (secret via a hidden prompt).
 `gds strava-auth` runs on my machine: it opens Strava's consent page with scopes
 `activity:write,activity:read_all` (`read_all` so private activities can be matched),
