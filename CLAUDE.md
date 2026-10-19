@@ -10,7 +10,7 @@ through an OAuth MCP connector. Read `docs/requirements.md` (what/why) and `docs
 |---|---|
 | M0 spike, M1 daily sync, M2 activities + FIT, M3 all other domains, M4 connector read tools + OAuth | **done, live** |
 | Full history backfill (from 2025-01-01) | **complete** (100%); pg_cron keeps it current |
-| **M5 writes to Garmin** (W-1..W-8) | **live** (design §21). Open: on-watch check of the test workout scheduled 2026-10-21 (then `undo_write` writes 2 and 1); first use from Claude chat; gear create/retire/defaults not run live |
+| **M5 writes to Garmin** (W-1..W-8) | **live** (design §21); scheduled workout confirmed on the watch. Open: first use from Claude chat; gear create/retire/defaults not run live |
 | M7 cut-over from Notion | **partial**: local scheduled task + Notion sync off (design §20); Notion DB still to archive |
 | M6 publish-readiness | later |
 

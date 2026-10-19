@@ -705,7 +705,7 @@ differed.
 | Use case | Result |
 |---|---|
 | W-1 weigh-in | ok (JSON endpoint, `MANUAL`); with body fat via FIT upload (`INDEX_SCALE`). `samplePk` found by a same-day lookup; both undone |
-| W-2 / W-3 workouts | run + strength uploaded, scheduled, rescheduled (id kept), strength deleted. **One test workout is still scheduled for 2026-10-21** for the on-watch check (criterion 4) |
+| W-2 / W-3 workouts | run + strength uploaded, scheduled, rescheduled (id kept). The scheduled run **appeared on the watch** after a sync (criterion 4), then was unscheduled and deleted via `undo_write`; the strength one via `delete_workout` |
 | W-4 hydration | +250 ml then −250 ml; daily total back to empty |
 | W-5 blood pressure | ok; **normaliser verified** on the real payload. Garmin sends `category` (AHA, e.g. ELEVATED) and `categoryName` (the account's ESH scale, e.g. NORMAL); we store `categoryName` |
 | W-6 activity edit | name, notes, type, RPE (stored ×10), feel, add/remove gear in one call; undo restored all |
