@@ -4,13 +4,13 @@ Syncs **all** Garmin Connect data into Supabase from a Vercel worker, and expose
 through an OAuth MCP connector. Read `docs/requirements.md` (what/why) and `docs/design.md`
 (how, plus per-milestone results in §15–§20) before changing anything.
 
-## Status (2026-10-17)
+## Status (2026-10-19)
 
 | Milestone | State |
 |---|---|
 | M0 spike, M1 daily sync, M2 activities + FIT, M3 all other domains, M4 connector read tools + OAuth | **done, live** |
-| Full history backfill (from 2025-01-01) | running unattended via pg_cron; check `get_sync_status` / `garmin.v_sync_health` |
-| **M5 writes to Garmin** (W-1..W-8) | **next**, see "Starting M5" below |
+| Full history backfill (from 2025-01-01) | **complete** (100%); pg_cron keeps it current |
+| **M5 writes to Garmin** (W-1..W-8) | **live** (design §21). Open: on-watch check of the test workout scheduled 2026-10-21 (then `undo_write` writes 2 and 1); first use from Claude chat; gear create/retire/defaults not run live |
 | M7 cut-over from Notion | **partial**: local scheduled task + Notion sync off (design §20); Notion DB still to archive |
 | M6 publish-readiness | later |
 
@@ -31,7 +31,7 @@ through an OAuth MCP connector. Read `docs/requirements.md` (what/why) and `docs
 
 ```powershell
 $uv = "C:\Users\korte\AppData\Local\Programs\Python\Python310\Scripts\uv.exe"
-& $uv run --python 3.12 pytest -q                 # 104 tests, no network/DB
+& $uv run --python 3.12 pytest -q                 # 142 tests, no network/DB
 & $uv run --python 3.12 ruff check gds tests scripts
 & $uv run --python 3.12 python -m gds.cli tick     # one sync tick locally against the real DB
 & $uv run --python 3.12 python -m gds.cli call tick                 # tick on Vercel (reads secret from .env)
@@ -87,25 +87,18 @@ seconds and **without ids** (`nap:<start>`); FIT running cadence is per leg (×2
 threshold speed is in an undocumented unit (stored as `_raw`); five `get_daily_*_stats` endpoints reject a
 month (fetched in 7-day chunks); the scheduled-workouts calendar takes 1-based months (the library converts).
 
-## Starting M5 (writes to Garmin)
+## Writes to Garmin (M5)
 
-Spec: requirements §4.6 (W-1..W-8, FR-17..19), design §8.3. Plan:
-1. Migration: `garmin.write_log` (tool, input, preview, garmin_response, status, created entity kind/id,
-   `created_by_system`, idempotency key unique).
-2. `gds/writes.py` + write tools in `gds/app.py` with `ToolAnnotations(readOnlyHint=False, destructiveHint=…)`.
-   Library methods (garminconnect 0.3.19): `add_weigh_in_with_timestamps` / `add_body_composition` (W-1);
-   `upload_running_workout`, `upload_strength_workout`, `upload_workout` (W-2); `schedule_workout`,
-   `reschedule_workout`, `unschedule_workout` (W-3); `add_hydration_data`, `set_blood_pressure`,
-   `set_activity_name/description/type`, `add_gear_to_activity`, `create_manual_activity`,
-   `create_gear` / `set_gear_status` / `set_gear_default` (W-4..W-8). Get the client via `broker.open_client`
-   and wrap calls in `Source` so errors map the same way.
-3. Workout builder: a simple documented JSON spec → Garmin workout JSON; validate against existing
-   `workout_detail` entities (real examples are already in the DB).
-4. After each write: `engine.request_resync` for the affected domain/date (weigh-ins → `body_composition`
-   month; workouts → `workouts` snapshot + `calendar_month`; activity edits → that activity's units).
-5. Ownership: reschedule/unschedule/delete only entities whose `write_log` row has `created_by_system`.
-6. Test against the real account with clearly labelled test items, then remove them. **Blood pressure's
-   normaliser is unverified**: confirm the payload shape after the first BP write.
+- `gds/writes.py`: one plan builder per tool; `execute()` does dry run → idempotency claim in `garmin.write_log`
+  → `Source.write` on a broker client → log → resync inline + requeue. Tools in `gds/app.py` default to
+  `dry_run=True`. New write = a plan function returning `Plan(preview, run)`; `run` returns an `Outcome`
+  (entity, `created_by_system`, `undo`, `resync` units). Anything removing/changing must go through `_owned()`.
+- `gds/workout_builder.py`: spec → Garmin JSON. Pace targets: **faster limit first** (Garmin's own convention,
+  not the library's). Strength weights in grams.
+- Live-test with `scripts/m5_live_test.py <function> '<json kwargs>'` (real account, same code path), label
+  items `GDS TEST`, clean up with `undo_write`. Gear has no delete endpoint: don't create test gear casually.
+- Deletions in Garmin don't flow through the activity index or per-id workout details; the undo/delete hooks
+  drop those rows explicitly (`_forget_activity`, `_forget_workout_detail`).
 
 ## Before calling something done
 

@@ -369,13 +369,16 @@ All run as `gds_reader` and return compact JSON with units in field names (`_kg`
 | Tool | Garmin method(s) | Req |
 |---|---|---|
 | `log_weight(weight_kg, date?, time?, body_fat_pct?, …)` | `add_weigh_in_with_timestamps` / `add_body_composition` | W-1 |
-| `create_workout(spec)` | `upload_running_workout` / `upload_strength_workout` / `upload_cycling_workout` / `upload_workout` | W-2 |
-| `schedule_workout(workout_id, date)`, `reschedule_workout`, `unschedule_workout` | `schedule_workout`, `reschedule_workout`, `unschedule_workout` | W-3 |
+| `create_workout(spec, schedule_date?)` | `upload_workout` (JSON from `workout_builder`) | W-2 |
+| `schedule_workout(workout_id, date)`, `reschedule_workout`, `unschedule_workout`, `delete_workout` | `schedule_workout`, `reschedule_workout`, `unschedule_workout`, `delete_workout` | W-3 |
 | `log_hydration(ml, date?)` | `add_hydration_data` | W-4 |
 | `log_blood_pressure(sys, dia, pulse, time?, notes?)` | `set_blood_pressure` | W-5 |
-| `update_activity(activity_id, name?, description?, type?)`, `set_activity_gear` | `set_activity_name/description/type`, `add_gear_to_activity` | W-6 |
-| `create_manual_activity(type, start, duration, distance?, name?)` | `create_manual_activity` | W-7 |
-| `manage_gear(action, …)` | `create_gear`, `set_gear_status`, `set_gear_default` | W-8 |
+| `update_activity(activity_id, name?, description?, activity_type?, rpe?, feel?, add/remove_gear_uuid?)` | `update_activity` (one PUT), `add/remove_gear_to/from_activity` | W-6 |
+| `create_manual_activity(activity_type, start, duration_min, name, distance_km?)` | `create_manual_activity_from_json` | W-7 |
+| `manage_gear(action, …)` | `create_gear`, `set_gear_status`, `update_gear` (defaults) | W-8 |
+| `undo_write(write_id)`, `get_write_log` | the matching delete / restore | FR-18/19 |
+
+*(Updated in M5; see §21 for what changed from the original plan.)*
 
 **Workout spec.** `create_workout` takes a **simple, documented JSON spec** that Claude
 can write reliably (steps of warm-up / run / recover / repeat(n) / cool-down with
@@ -668,3 +671,56 @@ differed.
   `../garmin-connect-mcp/garmin-wellness-collector.task.xml` (`Register-ScheduledTask -Xml` to
   restore).
 - **Still open:** archive the Notion database (not delete, per FR-16).
+
+## 21. M5 results (2026-10-19)
+
+- **12 write tools + `get_write_log`** on the connector (§8.3), all in `gds/writes.py`. Every
+  write: build + validate a plan (DB reads only) → `dry_run=true` returns the preview (the
+  **default**, so a bare call never writes; FR-17) → claim the idempotency key in
+  `garmin.write_log` → Garmin call on a broker client through `Source.write` (404 is an error
+  there, library `ValueError`s become `Invalid`) → log response, created entity and undo data →
+  resync the affected units **inline**, then queue them again 2 min later in case Garmin's read
+  side lags (FR-19). A failed write frees its key for a retry; a response without the expected
+  id (`Unclear`) keeps the key reserved so a retry can't write twice. Annotations: additive
+  tools `destructiveHint=false`, tools that change or remove `true`; all `idempotentHint=true`.
+- **Ownership (FR-18):** reschedule / unschedule / delete_workout / undo only act on entities
+  whose `write_log` row is `created_by_system` and not yet undone. Refusals were checked live
+  against the athlete's own workouts and plan-created calendar entries.
+- **`undo_write`:** deletes a weigh-in / BP reading / workout / schedule / manual activity the
+  system created, subtracts logged water, or restores an activity's previous name, notes,
+  type, RPE/feel (explicit nulls clear them) and gear.
+- **Workout builder** (`gds/workout_builder.py`, `SPEC_DOC` is the tool description): steps
+  warmup/run/recover/rest/cooldown/other ending on time, distance or lap button; targets pace
+  (faster limit in `targetValueOne`, as Garmin's own workouts store it), HR zone/range, power
+  zone/range, cadence, speed; repeats (nesting ≤ 2, `skip_last_rest`); strength exercises
+  from the library's 1,527-entry catalog (case/hyphen-insensitive, suggestions on a miss),
+  sets as repeat groups with rest, weight in grams. A real Garmin-made "4x4" workout is the
+  test fixture; live uploads of a run and a strength workout came back step-for-step identical.
+- **Times:** local date/time in, aware datetimes out, in Garmin's own timezone setting
+  (`s_user_timezone`, an IANA name such as Europe/Paris; `accounts.home_timezone`, here "CET",
+  is only a fallback). Manual activities send this name as their `timeZoneUnitDTO`.
+
+**Live verification** (real account, labelled `GDS TEST`, all removed again; write ids 1–17):
+
+| Use case | Result |
+|---|---|
+| W-1 weigh-in | ok (JSON endpoint, `MANUAL`); with body fat via FIT upload (`INDEX_SCALE`). `samplePk` found by a same-day lookup; both undone |
+| W-2 / W-3 workouts | run + strength uploaded, scheduled, rescheduled (id kept), strength deleted. **One test workout is still scheduled for 2026-10-21** for the on-watch check (criterion 4) |
+| W-4 hydration | +250 ml then −250 ml; daily total back to empty |
+| W-5 blood pressure | ok; **normaliser verified** on the real payload. Garmin sends `category` (AHA, e.g. ELEVATED) and `categoryName` (the account's ESH scale, e.g. NORMAL); we store `categoryName` |
+| W-6 activity edit | name, notes, type, RPE (stored ×10), feel, add/remove gear in one call; undo restored all |
+| W-7 manual activity | private `other` activity created, deleted by undo |
+| W-8 gear | linking/unlinking on an activity verified; **create / retire / set defaults not run live** (Garmin has no gear delete, so a test pair would stay) |
+
+**Sync fixes found while testing**
+- `replace_missing` compared keys as text; a `timestamptz` key (blood pressure) prints
+  differently in Python and Postgres, so a fresh BP row was deleted right after its upsert.
+  Keys are now compared by type (`unnest` of typed arrays, types from the catalog). No real
+  rows were affected (the table was empty).
+- Weigh-in and BP months now carry a `between` replace scope, so readings deleted in Garmin
+  (or undone) disappear here too. Months with no readings now count as `empty` again (empty
+  lists don't count as typed rows).
+- `Domain.on_empty`: an activity whose gear was all unlinked kept its old gear; an empty
+  `activity_gear` payload now clears it (once, on the transition).
+- Deleting a manual activity or a workout drops its rows/units/raw explicitly (the activity
+  index and the workouts list don't see deletions of per-id children).
