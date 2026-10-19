@@ -4,7 +4,7 @@ Syncs **all** Garmin Connect data into Supabase from a Vercel worker, and expose
 through an OAuth MCP connector. Read `docs/requirements.md` (what/why) and `docs/design.md`
 (how, plus per-milestone results in §15–§20) before changing anything.
 
-## Status (2026-10-19)
+## Status (2026-10-19, after M6)
 
 | Milestone | State |
 |---|---|
@@ -12,8 +12,8 @@ through an OAuth MCP connector. Read `docs/requirements.md` (what/why) and `docs
 | Full history backfill (from 2025-01-01) | **complete** (100%); pg_cron keeps it current |
 | **M5 writes to Garmin** (W-1..W-8) | **live** (design §21); scheduled workout confirmed on the watch. Open: first use from Claude chat; gear create/retire/defaults not run live |
 | M5b Strava titles & descriptions (W-9) | **live** (design §8.4, §22). Strava app 288893, authorized with `gds strava-auth`; re-run it if Strava access is revoked |
+| M6 ops & publish-readiness | **done, live** (design §23): `gds_worker` login on Vercel, `gds migrate` / `doctor`, CI + gitleaks, backup tick, README guide, forced-failure alert passed. Open: literal fresh-fork rehearsal (criterion 6) |
 | M7 cut-over from Notion | **partial**: local scheduled task + Notion sync off (design §20); Notion DB still to archive |
-| M6 publish-readiness | later |
 
 ## Where things run
 
@@ -22,6 +22,11 @@ through an OAuth MCP connector. Read `docs/requirements.md` (what/why) and `docs
 - **DB:** Supabase project `hupprxfroepnapexzwef` (eu-west-1), schema **`garmin`** (not exposed via REST).
 - **Scheduler:** Supabase `pg_cron` job `gds_tick` every 10 min → `POST /api/tick` (URL + secret in Vault:
   `gds_tick_url`, `gds_tick_secret`); `gds_watchdog` daily 06:00 UTC emails via Resend if sync is stale or failing.
+  Backup: GitHub Actions `backup-tick.yml` daily 04:17 UTC (repo secrets `GDS_BASE_URL`, `TICK_SECRET`).
+- **DB logins:** Vercel's `DATABASE_URL` is the `gds_worker` role (`.env` `WORKER_DATABASE_URL`); `.env`
+  `DATABASE_URL` is `postgres`, local only. New tables get worker DML via default privileges.
+- **CI:** `.github/workflows/ci.yml`: ruff + pytest, gitleaks (full history, `.gitleaks.toml`), migrations on a
+  fresh `supabase/postgres` container. Check with `gh run list`.
 - **Alerts:** Resend domain `mail.lilic.dev` (EU), sender `alerts@mail.lilic.dev`.
 - **Connector:** `https://gds.lilic.dev/mcp` (OAuth 2.1, owner password). Used by the Claude Fitness project
   (prompts in `docs/claude/`). The legacy secret-path connector is disabled (`LEGACY_SECRET_CONNECTOR=0`).
@@ -32,7 +37,9 @@ through an OAuth MCP connector. Read `docs/requirements.md` (what/why) and `docs
 
 ```powershell
 $uv = "C:\Users\korte\AppData\Local\Programs\Python\Python310\Scripts\uv.exe"
-& $uv run --python 3.12 pytest -q                 # 142 tests, no network/DB
+& $uv run --python 3.12 pytest -q                 # 168 tests, no network/DB
+& $uv run --python 3.12 python -m gds.cli doctor   # checks the whole deployment (DB, Vault, cron, app, GitHub)
+& $uv run --python 3.12 python -m gds.cli migrate --dry-run   # pending migrations (matched by version or name)
 & $uv run --python 3.12 ruff check gds tests scripts
 & $uv run --python 3.12 python -m gds.cli tick     # one sync tick locally against the real DB
 & $uv run --python 3.12 python -m gds.cli call tick                 # tick on Vercel (reads secret from .env)
@@ -45,7 +52,7 @@ $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Env
   terminal tab** (`run_in_terminal`). The Vercel login lives there, not in the agent's sandboxed shell.
   Use `vercel.cmd`: PowerShell blocks `vercel.ps1`. No Git integration yet; deploys are CLI only.
 - **Migrations:** write the SQL to `supabase/migrations/<timestamp>_<name>.sql` **and** apply it with the
-  Supabase MCP `apply_migration` (same SQL). Use `execute_sql` for reads/one-off checks. Run `get_advisors`
+  Supabase MCP `apply_migration` (same SQL, same `<name>`, so `gds migrate` sees it as applied). Use `execute_sql` for reads/one-off checks. Run `get_advisors`
   after DDL. RLS is on everywhere; reader tables need a `gds_reader_select` policy plus a grant.
 - PowerShell 5.1 reads files as ANSI: don't rewrite UTF-8 files with `Get-Content`/`Set-Content` (it garbled
   `§` once). Use the Edit tool. `vercel link` re-appends `.vercel` / `.env*` to `.gitignore`; that's harmless.

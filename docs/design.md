@@ -106,9 +106,10 @@ so nothing is reachable through Supabase client keys (NFR-2).
 | `gds_reader` | MCP read tools and `query_sql` | `SELECT` on the curated views + typed tables only; `statement_timeout = 5s` |
 | `postgres` | migrations only | owner |
 
-> **M1 status:** `gds_reader` exists as a **NOLOGIN** role with read policies, entered via
-> `SET ROLE` (no extra password). The worker still connects as `postgres` through the
-> pooler. A dedicated `gds_worker` login role is deferred to M6 (publish-readiness).
+> **As built (M6):** `gds_reader` is a **NOLOGIN** role with read policies, entered via
+> `SET LOCAL ROLE` from the worker (no extra password). The deployed app logs in as
+> **`gds_worker`** through the pooler (BYPASSRLS, DML on `garmin.*`, no Vault, no DDL);
+> `postgres` is used only from the owner's machine (`gds migrate`, `gds setup`, CLI). See §23.
 
 ### 4.2 Core / operational tables
 
@@ -450,9 +451,9 @@ if it rules this use out.
 | Job | Where | Schedule | What |
 |---|---|---|---|
 | `gds_tick` | Supabase `pg_cron` + `pg_net` | every 10 min | `POST {VERCEL_URL}/api/tick` with `X-GDS-Secret` (secret stored in Supabase **Vault**) |
-| `gds_watchdog` | Supabase `pg_cron` | daily 08:00 CET | If no successful run in 24 h, account `needs_reauth`, or units stuck failed → email via **Resend directly from Postgres** (`pg_net`), so alerts work even if Vercel is down |
-| `backup-tick` | GitHub Actions | daily | `curl` the tick endpoint, in case `pg_cron` breaks. Also generates activity that keeps the free Supabase project from pausing |
-| CI | GitHub Actions | on push/PR | ruff, pyright, pytest (unit + integration against a Postgres service container), migration dry-run |
+| `gds_watchdog` | Supabase `pg_cron` | daily 06:00 UTC | If no successful run in 24 h, account `needs_reauth`, or units stuck failed → email via **Resend directly from Postgres** (`pg_net`), so alerts work even if Vercel is down |
+| `backup-tick` | GitHub Actions | daily 04:17 UTC | `curl` the tick endpoint, in case `pg_cron` breaks (repo secrets `GDS_BASE_URL`, `TICK_SECRET`, set by `gds setup`). A failed run makes GitHub email the owner |
+| CI | GitHub Actions | on push/PR | ruff + pytest; gitleaks over the whole history; every migration applied with `gds migrate` to a fresh `supabase/postgres` service container, then role/job/privilege checks |
 
 **Alerting from the app** (FR-13): `Alerter` protocol with a `ResendAlerter`
 implementation. Alert conditions: re-auth needed, Garmin blocking (403 ×3), repeated
@@ -464,12 +465,13 @@ The weekly Claude review also calls `get_sync_status` and mentions stale data
 
 | Secret | Lives in | Used by |
 |---|---|---|
-| `DATABASE_URL` (pooler, `gds_worker`) | Vercel env, local `.env` | app, CLI |
-| `READER_DATABASE_URL` (`gds_reader`) | Vercel env | MCP read tools |
+| `DATABASE_URL` (pooler, `postgres`) | local `.env` only | `gds migrate`, `gds setup`, local CLI |
+| `WORKER_DATABASE_URL` (pooler, `gds_worker`) | local `.env` → Vercel env as `DATABASE_URL` | app (read tools drop to `gds_reader` via `SET LOCAL ROLE`) |
 | `TOKEN_ENC_KEY` | Vercel env, local `.env` (for `gds auth`) | token broker |
-| `TICK_SECRET` | Vercel env + Supabase Vault | `/api/tick`, `/api/sync` |
-| `OWNER_PASSWORD_HASH`, `OAUTH_SIGNING_KEY` | Vercel env | OAuth |
+| `TICK_SECRET` | Vercel env + Supabase Vault + GitHub secret | `/api/tick`, `/api/sync`, backup tick |
+| `OWNER_PASSWORD_HASH` | Vercel env | OAuth owner login (tokens are opaque, hashed in the DB; no signing key) |
 | `RESEND_API_KEY`, `ALERT_EMAIL` | Vercel env + Supabase Vault | alerts |
+| `STRAVA_CLIENT_ID` / `_SECRET` | Vercel env | W-9 |
 
 - No secrets in git: `.env` is git-ignored, `.env.example` is committed, and CI runs a
   secret scanner (gitleaks) so the repo stays publishable (FR-24).
@@ -794,3 +796,52 @@ differed.
 - **Live test** (write 20 → undo 21): Strava activity of the 2026-10-14 "2x10" run retitled with a
   description from its planned workout, read back from Strava, then restored to its previous title
   ("2x10 threshold") and empty description.
+
+## 23. M6 results (2026-10-19)
+
+- **`gds_worker` login (§4.1):** migration `m6_worker_role` creates a NOLOGIN role (BYPASSRLS; DML on
+  all `garmin` tables + sequences, default privileges for later tables; `SET` to `gds_reader`; no Vault,
+  no DDL). `gds setup` generates `WORKER_DATABASE_URL` (pooler user `gds_worker.<ref>`), sets the
+  password as a **SCRAM-SHA-256 verifier computed locally** (tested against RFC 7677's example
+  exchange), so no plaintext reaches Postgres or its logs, and pushes it to Vercel as `DATABASE_URL`.
+  The admin URL stays on the owner's machine. Verified as the worker before switching: a 36-request
+  resync tick, all 19 `oauth_e2e` checks (including the `gds_reader` drop). After the deploy, the
+  only app sessions in `pg_stat_activity` are `gds_worker` via Supavisor, and pg_cron, manual and
+  backup ticks all succeed.
+- **`gds migrate`:** applies `supabase/migrations/*.sql` in order, one transaction each, recorded
+  in Supabase's own ledger (`supabase_migrations.schema_migrations`). A migration counts as applied
+  if its version **or name** is there, because the Supabase MCP records its own timestamps
+  (all 16 on production matched by name).
+- **`gds doctor`:** one command checks `.env`, the admin connection, pending migrations, Vault
+  (`gds_tick_url` / `gds_tick_secret` compared server-side with `.env`, alert secrets present),
+  both pg_cron jobs and a pg_cron tick in the last 30 min, the Garmin token, sync freshness
+  (≤ 4 h ok, ≤ 24 h warn) and backfill, Strava, the worker login (and that it can't reach Vault),
+  the app (`/api/health`, tick refuses no-secret requests, OAuth issuer = `GDS_BASE_URL`, a hint
+  when Vercel Deployment Protection blocks production), and the GitHub backup secrets + last run.
+  Values are compared, never printed. All green on production.
+- **CI** (`.github/workflows/ci.yml`): ruff + pytest; gitleaks 8.30.1 over the full history
+  (`.gitleaks.toml` allowlists Garmin `*I18nKey` / `badgeKey` fixture fields, the only two
+  findings); all migrations from scratch on `supabase/postgres:17.11.0.003`, a second run as a
+  no-op, then checks for the pg_cron jobs, the worker's BYPASSRLS, default privileges on a new
+  table, no Vault access, and `garmin.watchdog()`. Green on the first run.
+- **Backup tick** (`backup-tick.yml`, daily 04:17 UTC, skips without secrets): dispatched once,
+  run 305 (`github_backup`) ok.
+- **Fresh-fork gaps fixed:** `gds setup` now stores `gds_tick_url` in Vault (it was set by hand
+  in M0); a new account had no `backfill_start`, so only the last 3 days would sync. `gds auth`
+  now defaults it to two years back (`--since` to choose), and `gds backfill --since` changes it
+  later. The legacy secret-path connector is **off unless** `LEGACY_SECRET_CONNECTOR=1`, and
+  `gds connector-url` prints the OAuth URL. `.env.example` lists every setting.
+- **README** is a step-by-step setup guide (Supabase → `migrate` → `owner-password` + `setup` →
+  deploy → `GDS_BASE_URL` + setup + redeploy → `auth` → `call tick` + `doctor` → Claude connector →
+  optional Strava) plus day-to-day operations. MIT licence was already in place.
+- **Forced failure (criterion 5): passed.** A throwaway account `m6-forced-failure` got an expired
+  token with an invalid refresh token. One local tick: Garmin answered the refresh with 400 →
+  `AuthFailed` → account `needs_reauth` → app alert "needs_reauth" with step-by-step re-auth
+  instructions; then `garmin.watchdog()` sent its own email from Postgres. Resend reports **both
+  delivered** within seconds (13:50 UTC). Test account deleted; the two `alerts` rows are kept
+  with `account_id` cleared.
+- **Criterion 6 (fresh fork from the README alone): not yet run end to end.** Every step has run
+  for real except on a clean account: migrations from zero in CI; `setup`, `doctor`, the backup
+  tick and the worker login on production. A literal rehearsal needs a second Supabase project, a
+  second Vercel project and a Garmin login, so it's left as a separate, owner-attended task.
+- Also fixed: `scripts/oauth_e2e.py` still expected 16 tools; it now accepts the M5 write tools (30).
