@@ -386,6 +386,7 @@ QUERYABLE = [
     ("calendar_items", "Garmin calendar: activities, naps, scheduled workouts"),
     ("entities", "devices, gear, PRs, goals, badges, workouts, plans, profile (jsonb data)"),
     ("intraday_series", "raw intraday arrays (ts_offsets_s, vals); prefer v_intraday_points"),
+    ("write_log", "writes this system made to Garmin (tool, input, preview, status, created entity)"),
 ]
 
 

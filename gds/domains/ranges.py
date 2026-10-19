@@ -83,7 +83,16 @@ def _weigh_ins(raw: Any, key: str) -> Rows:
                 "source_type": w.get("sourceType"),
             }
         )
-    return {"weigh_ins": rows} if rows else {}
+    return _month_snapshot("weigh_ins", rows, raw, key, "dateWeightList")
+
+
+def _month_snapshot(table: str, rows: list[dict[str, Any]], raw: Any, key: str, list_field: str) -> Rows:
+    """Rows of a full month listing, plus a replace scope so readings deleted in Garmin
+    (or undone by a write tool) disappear here too. Only when the payload really is a listing."""
+    if not isinstance(raw, dict) or list_field not in raw:
+        return {table: rows} if rows else {}
+    start, end = month_bounds(key, cap_today=False)
+    return {table: rows, "_replace": [{"table": table, "between": ("calendar_date", start, end)}]}
 
 
 def _blood_pressure(raw: Any, key: str) -> Rows:
@@ -108,7 +117,7 @@ def _blood_pressure(raw: Any, key: str) -> Rows:
                     "sample_version": to_int(m.get("version")),
                 }
             )
-    return {"blood_pressure": rows} if rows else {}
+    return _month_snapshot("blood_pressure", rows, raw, key, "measurementSummaries")
 
 
 def metric_row(day: Any, metric: str, value: Any, detail: Any = None) -> dict[str, Any] | None:

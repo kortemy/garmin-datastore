@@ -26,6 +26,9 @@ class Domain:
     binary: bool = False  # payload is bytes (e.g. a FIT zip), not JSON
     refresh_hours: float | None = None  # snapshot/range: re-fetch "live" units this often
     months_ahead: int = 0  # range: also keep units for future months (calendar)
+    # Rows to apply when the payload is empty, for domains whose emptiness means "cleared"
+    # (e.g. all gear unlinked from an activity).
+    on_empty: Callable[[str], Rows] | None = None
 
 
 REGISTRY: dict[str, Domain] = {}

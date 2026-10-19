@@ -33,6 +33,10 @@ class Transient(SourceError):
     """Anything else (5xx, timeouts, odd payloads): retry this unit later."""
 
 
+class Invalid(SourceError):
+    """A write's arguments were rejected before anything was sent."""
+
+
 def map_error(e: Exception) -> Exception:
     if isinstance(e, SourceError):
         return e
@@ -68,5 +72,19 @@ class Source:
             return getattr(self.client, method)(*args)
         except GarminConnectNotFoundError:
             return None
+        except Exception as e:  # noqa: BLE001
+            raise map_error(e) from e
+
+    def write(self, method: str, *args: Any, **kwargs: Any) -> Any:
+        """A write (M5). Unlike `call`, a 404 is an error: the target doesn't exist.
+        The library's own argument checks (ValueError) surface as `Invalid`."""
+        self._wait()
+        self.requests += 1
+        try:
+            return getattr(self.client, method)(*args, **kwargs)
+        except ValueError as e:
+            raise Invalid(str(e)[:300]) from e
+        except GarminConnectNotFoundError as e:
+            raise Transient(f"not found: {str(e)[:200]}") from e
         except Exception as e:  # noqa: BLE001
             raise map_error(e) from e

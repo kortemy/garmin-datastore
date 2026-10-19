@@ -15,7 +15,12 @@ MCP_HEADERS = {"Accept": "application/json, text/event-stream", "Content-Type": 
 EXPECTED_TOOLS = {
     "ping", "get_sync_status", "get_daily_wellness", "get_sleep", "get_intraday", "list_activities", "get_activity",
     "get_activity_streams", "get_trend", "get_body", "get_performance", "get_entities", "get_calendar",
-    "describe_schema", "query_sql", "request_resync",
+    "describe_schema", "query_sql", "request_resync", "get_write_log",
+}
+WRITE_TOOLS = {
+    "log_weight", "create_workout", "schedule_workout", "reschedule_workout", "unschedule_workout",
+    "delete_workout", "log_hydration", "log_blood_pressure", "update_activity", "create_manual_activity",
+    "manage_gear", "undo_write",
 }
 
 
@@ -55,8 +60,19 @@ def test_legacy_connector_lists_all_tools(c, monkeypatch):
                 {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}})
     assert init["result"]["serverInfo"]["name"] == "garmin-datastore"
     tools = _rpc(c, "tools/list", id_=2)["result"]["tools"]
-    assert {t["name"] for t in tools} == EXPECTED_TOOLS
-    assert all(t.get("annotations", {}).get("readOnlyHint") for t in tools if t["name"] != "request_resync")
+    assert {t["name"] for t in tools} == EXPECTED_TOOLS | WRITE_TOOLS
+    by_name = {t["name"]: t for t in tools}
+    assert all(by_name[n]["annotations"]["readOnlyHint"] for n in EXPECTED_TOOLS - {"request_resync"})
+    for name in WRITE_TOOLS:
+        t = by_name[name]
+        assert t["annotations"]["readOnlyHint"] is False
+        assert "dry_run=true" in t["description"]
+        props = t["inputSchema"]["properties"]
+        assert "idempotency_key" in t["inputSchema"]["required"]
+        assert props["dry_run"]["default"] is True  # FR-17: a bare call only previews
+    destructive = {n for n in WRITE_TOOLS if by_name[n]["annotations"]["destructiveHint"]}
+    assert destructive == {"reschedule_workout", "unschedule_workout", "delete_workout", "update_activity",
+                           "manage_gear", "undo_write"}
     out = _rpc(c, "tools/call", {"name": "ping", "arguments": {"note": "test"}}, id_=3)
     assert "pong" in out["result"]["content"][0]["text"]
     assert recorded == [("mcp", "ping", {"note": "test"})]

@@ -231,8 +231,10 @@ def apply_rows(conn: psycopg.Connection, acct_id: uuid.UUID, rows: dict[str, Any
         elif table != "_replace":
             written += store.upsert_rows(conn, acct_id, table, table_rows)
     for spec in rows.get("_replace", []):
-        keep = [r for r in rows.get(spec["table"], []) if all(r.get(c) == v for c, v in spec["scope"].items())]
-        store.replace_missing(conn, acct_id, spec["table"], spec["scope"], keep)
+        scope = spec.get("scope", {})
+        keep = [r for r in rows.get(spec["table"], []) if all(r.get(c) == v for c, v in scope.items())]
+        between = tuple(spec["between"]) if spec.get("between") else None
+        store.replace_missing(conn, acct_id, spec["table"], scope, keep, between)
     return written
 
 
@@ -261,6 +263,11 @@ def process_unit(conn: psycopg.Connection, src: Source, acct_id: uuid.UUID, unit
     if raw in (None, [], {}) or raw == b"":
         with conn.transaction():
             _mark(conn, acct_id, unit, "empty", fetched_at=now)
+            if domain.on_empty and unit["content_hash"] is not None:  # it had data before: clear it
+                apply_rows(conn, acct_id, domain.on_empty(unit["scope_key"]))
+                conn.execute("""update garmin.work_units set content_hash = null
+                                where account_id = %s and domain = %s and scope_key = %s""",
+                             (acct_id, unit["domain"], unit["scope_key"]))
         return "empty"
 
     data, digest = store.encode_raw(raw)
@@ -288,7 +295,7 @@ def process_unit(conn: psycopg.Connection, src: Source, acct_id: uuid.UUID, unit
                 next_attempt_at=now + backoff(attempts),
             )
             return "failed"
-        typed = {t: r for t, r in rows.items() if t not in ("work_units", "_replace")}
+        typed = {t: r for t, r in rows.items() if t not in ("work_units", "_replace") and r}
         status = "empty" if domain.normalize and not typed else "done"
         _mark(conn, acct_id, unit, status, content_hash=digest, fetched_at=now)
     return status

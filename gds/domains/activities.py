@@ -332,7 +332,8 @@ register(Domain("activity_power_zones", "activity", _simple("get_activity_power_
                 lambda raw, key: _zone_rows(raw, key, "power"), priority=8))
 register(Domain("activity_exercise_sets", "activity", _simple("get_activity_exercise_sets"), _sets, priority=9))
 register(Domain("activity_weather", "activity", _simple("get_activity_weather"), _weather, priority=7))
-register(Domain("activity_gear", "activity", _simple("get_activity_gear"), _gear, priority=7))
+register(Domain("activity_gear", "activity", _simple("get_activity_gear"), _gear, priority=7,
+                on_empty=lambda key: {"activities": [{"activity_id": _aid(key), "gear": None}]}))
 register(Domain("activity_fit", "activity", _fetch_fit, _fit, priority=8, binary=True))
 # Raw-only (full payloads kept; per-sample charts are better read from the FIT file).
 register(Domain("activity_details", "activity", _simple("get_activity_details"), priority=6))

@@ -18,7 +18,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel
 
-from gds import alerts, engine, oauth, spike, status, tools
+from gds import alerts, engine, oauth, spike, status, tools, workout_builder, writes
 from gds.config import settings
 from gds.db import connect
 
@@ -26,9 +26,20 @@ INSTRUCTIONS = (
     "Garmin Connect data (wellness, sleep, HRV, readiness, training load, activities with laps/zones/FIT "
     "streams, body measurements, performance metrics, gear, workouts, calendar) synced into a database "
     "every few hours. Call get_sync_status first and say plainly if data is missing or stale; never invent "
-    "numbers. Dates are the athlete's local calendar dates (YYYY-MM-DD). Units are in field names."
+    "numbers. Dates are the athlete's local calendar dates (YYYY-MM-DD). Units are in field names.\n"
+    "Write tools change the athlete's Garmin account. Only write when asked. First call the tool with "
+    "dry_run=true, show the user the returned preview word for word, and call again with dry_run=false only "
+    "after they explicitly confirm. Give every distinct write a new idempotency_key (e.g. a UUID) and reuse it "
+    "only to retry the same write."
 )
 READ = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
+# Writes are idempotent per idempotency_key. "Additive" ones only add data; the others change or
+# remove something (only things this system created, except activity edits and gear status).
+ADD = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True)
+CHANGE = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True)
+CONFIRM = ("Changes Garmin: call with dry_run=true first, show the user the preview, and repeat with "
+           "dry_run=false only after explicit confirmation. idempotency_key: a new UUID per write, the same "
+           "one to retry.")
 
 
 def build_server(**auth_kwargs: Any) -> MCPServer:
@@ -141,7 +152,120 @@ def build_server(**auth_kwargs: Any) -> MCPServer:
                                 (settings().account_label,)).fetchone()
             return {"queued_units": engine.request_resync(conn, acct["id"], domain, start, end)}
 
+    _write_tools(mcp)
     return mcp
+
+
+def _confirm(doc: str) -> str:
+    return f"{doc}\n\n{CONFIRM}"
+
+
+def _write_tools(mcp: MCPServer) -> None:
+    """Write tools (requirements §4.6, design §8.3). All logic lives in gds.writes."""
+
+    @mcp.tool(annotations=ADD, description=_confirm(
+        "W-1. Log a weigh-in (kg), optionally with body composition. date YYYY-MM-DD and time HH:MM are local "
+        "(default now). The preview shows the change from the last weigh-in."))
+    def log_weight(idempotency_key: str, weight_kg: float, date: str | None = None, time: str | None = None,
+                   body_fat_pct: float | None = None, body_water_pct: float | None = None,
+                   muscle_mass_kg: float | None = None, bone_mass_kg: float | None = None,
+                   visceral_fat_rating: float | None = None, metabolic_age: int | None = None,
+                   dry_run: bool = True) -> dict[str, Any]:
+        return writes.log_weight(idempotency_key, weight_kg, date, time, body_fat_pct, body_water_pct,
+                                 muscle_mass_kg, bone_mass_kg, visceral_fat_rating, metabolic_age, dry_run)
+
+    @mcp.tool(annotations=ADD, description=_confirm(
+        "W-2. Create a structured workout in the Garmin library (it syncs to the watch once scheduled or "
+        "sent). Optionally schedule it right away with schedule_date (YYYY-MM-DD). The dry run returns a "
+        "step-by-step summary to show the user.\n\n" + workout_builder.SPEC_DOC))
+    def create_workout(idempotency_key: str, spec: dict[str, Any], schedule_date: str | None = None,
+                       dry_run: bool = True) -> dict[str, Any]:
+        return writes.create_workout(idempotency_key, spec, schedule_date, dry_run)
+
+    @mcp.tool(annotations=ADD, description=_confirm(
+        "W-3. Put a library workout (workout_id from create_workout or get_entities kind='workout') on the "
+        "Garmin calendar on date (YYYY-MM-DD) so it syncs to the watch."))
+    def schedule_workout(idempotency_key: str, workout_id: int, date: str, dry_run: bool = True) -> dict[str, Any]:
+        return writes.schedule_workout(idempotency_key, workout_id, date, dry_run)
+
+    @mcp.tool(annotations=CHANGE, description=_confirm(
+        "W-3. Move a scheduled workout to new_date. Only works for calendar entries this system scheduled "
+        "(scheduled_workout_id from schedule_workout, or get_calendar item_id)."))
+    def reschedule_workout(idempotency_key: str, scheduled_workout_id: int, new_date: str,
+                           dry_run: bool = True) -> dict[str, Any]:
+        return writes.reschedule_workout(idempotency_key, scheduled_workout_id, new_date, dry_run)
+
+    @mcp.tool(annotations=CHANGE, description=_confirm(
+        "W-3. Remove a scheduled workout from the calendar (the workout stays in the library). Only for "
+        "entries this system scheduled."))
+    def unschedule_workout(idempotency_key: str, scheduled_workout_id: int, dry_run: bool = True) -> dict[str, Any]:
+        return writes.unschedule_workout(idempotency_key, scheduled_workout_id, dry_run)
+
+    @mcp.tool(annotations=CHANGE, description=_confirm(
+        "Delete a workout from the Garmin library (and its scheduled dates). Only for workouts this system "
+        "created; the athlete's own workouts are never deleted."))
+    def delete_workout(idempotency_key: str, workout_id: int, dry_run: bool = True) -> dict[str, Any]:
+        return writes.delete_workout(idempotency_key, workout_id, dry_run)
+
+    @mcp.tool(annotations=ADD, description=_confirm(
+        "W-4. Add (or with a negative ml, subtract) water intake for a day (default today). Garmin adds it to "
+        "the day's total: if the user states a new total, log the difference (the preview shows the synced "
+        "total)."))
+    def log_hydration(idempotency_key: str, ml: float, date: str | None = None, dry_run: bool = True) -> dict:
+        return writes.log_hydration(idempotency_key, ml, date, dry_run)
+
+    @mcp.tool(annotations=ADD, description=_confirm(
+        "W-5. Log a blood pressure reading (mmHg, optional pulse bpm and note). date/time local, default now."))
+    def log_blood_pressure(idempotency_key: str, systolic: int, diastolic: int, pulse: int | None = None,
+                           date: str | None = None, time: str | None = None, notes: str | None = None,
+                           dry_run: bool = True) -> dict[str, Any]:
+        return writes.log_blood_pressure(idempotency_key, systolic, diastolic, pulse, date, time, notes, dry_run)
+
+    @mcp.tool(annotations=CHANGE, description=_confirm(
+        "W-6. Edit an activity: name, description (replaces the current notes), activity_type (Garmin type "
+        "key, e.g. 'basketball', 'strength_training'), rpe (1-10), feel (0 very weak, 25, 50 normal, 75, 100 "
+        "very strong), add/remove gear by uuid (get_entities kind='gear'). Previous values are kept so "
+        "undo_write can restore them."))
+    def update_activity(idempotency_key: str, activity_id: int, name: str | None = None,
+                        description: str | None = None, activity_type: str | None = None, rpe: int | None = None,
+                        feel: int | None = None, add_gear_uuid: str | None = None,
+                        remove_gear_uuid: str | None = None, dry_run: bool = True) -> dict[str, Any]:
+        return writes.update_activity(idempotency_key, activity_id, name, description, activity_type, rpe, feel,
+                                      add_gear_uuid, remove_gear_uuid, dry_run)
+
+    @mcp.tool(annotations=ADD, description=_confirm(
+        "W-7. Log a session done without the watch. activity_type is a Garmin type key (e.g. 'basketball', "
+        "'strength_training', 'running'); start is local 'YYYY-MM-DDTHH:MM'. Created private; Garmin "
+        "estimates calories."))
+    def create_manual_activity(idempotency_key: str, activity_type: str, start: str, duration_min: float,
+                               name: str, distance_km: float | None = None, description: str | None = None,
+                               dry_run: bool = True) -> dict[str, Any]:
+        return writes.create_manual_activity(idempotency_key, activity_type, start, duration_min, name,
+                                             distance_km, description, dry_run)
+
+    @mcp.tool(annotations=CHANGE, description=_confirm(
+        "W-8. Gear. action='create' (brand, model, optional name, gear_type SHOES|BIKE|OTHER, "
+        "first_use_date, max_distance_km, default_for activity types), 'retire' / 'activate' (gear_uuid), "
+        "'set_defaults' (gear_uuid + default_for: the activity types it is the default for; [] clears)."))
+    def manage_gear(idempotency_key: str, action: str, gear_uuid: str | None = None, brand: str | None = None,
+                    model: str | None = None, name: str | None = None, gear_type: str = "SHOES",
+                    first_use_date: str | None = None, max_distance_km: float | None = None,
+                    default_for: list[str] | None = None, dry_run: bool = True) -> dict[str, Any]:
+        return writes.manage_gear(idempotency_key, action, gear_uuid, brand, model, name, gear_type,
+                                  first_use_date, max_distance_km, default_for, dry_run)
+
+    @mcp.tool(annotations=CHANGE, description=_confirm(
+        "Reverse an earlier write by write_id (see get_write_log): deletes a weigh-in, blood pressure reading, "
+        "workout, schedule or manual activity this system created, subtracts logged water, or restores an "
+        "activity's previous name/description/type/RPE/gear."))
+    def undo_write(idempotency_key: str, write_id: int, dry_run: bool = True) -> dict[str, Any]:
+        return writes.undo_write(idempotency_key, write_id, dry_run)
+
+    @mcp.tool(annotations=READ)
+    def get_write_log(limit: int = 20) -> dict[str, Any]:
+        """Writes this system made to Garmin, newest first: tool, what was written, status, created ids,
+        whether it was undone. Use for 'what did you change?' and to find a write_id for undo_write."""
+        return writes.recent_writes(limit)
 
 
 def _http_app(mcp: MCPServer):

@@ -33,21 +33,52 @@ TABLE_KEYS: dict[str, tuple[str, ...]] = {
 }
 
 
+_COLUMN_TYPES: dict[str, dict[str, str]] = {}
+
+
+def _column_types(conn: psycopg.Connection, table: str) -> dict[str, str]:
+    """Column → SQL type name (e.g. 'timestamp with time zone') of a garmin table, cached."""
+    if table not in _COLUMN_TYPES:
+        rows = conn.execute(
+            """select a.attname, format_type(a.atttypid, a.atttypmod) as type
+               from pg_attribute a where a.attrelid = %s::regclass and a.attnum > 0 and not a.attisdropped""",
+            (f"garmin.{table}",),
+        ).fetchall()
+        _COLUMN_TYPES[table] = {r["attname"]: r["type"] for r in rows}
+    return _COLUMN_TYPES[table]
+
+
 def replace_missing(
-    conn: psycopg.Connection, acct: uuid.UUID, table: str, scope: dict[str, Any], keep: list[dict[str, Any]]
+    conn: psycopg.Connection, acct: uuid.UUID, table: str, scope: dict[str, Any], keep: list[dict[str, Any]],
+    between: tuple[str, Any, Any] | None = None,
 ) -> int:
-    """Delete rows of `table` within `scope` whose natural key isn't in `keep` (a full
-    snapshot of that scope, so anything absent was deleted in Garmin)."""
+    """Delete rows of `table` within `scope` (column = value, and/or `between` = (column, low,
+    high) inclusive) whose natural key isn't in `keep` (a full snapshot of that scope, so
+    anything absent was deleted in Garmin)."""
+    if not scope and not between:
+        raise ValueError("replace_missing needs a scope")
     keys = [k for k in TABLE_KEYS[table] if k != "account_id" and k not in scope]
-    keep_ids = ["|".join(str(r[k]) for k in keys) for r in keep]
-    where = sql.SQL(" and ").join(sql.SQL("{} = %s").format(sql.Identifier(c)) for c in scope)
-    key_expr = sql.SQL("concat_ws('|', {})").format(
-        sql.SQL(", ").join(sql.SQL("{}::text").format(sql.Identifier(k)) for k in keys)
+    conds = [sql.SQL("t.{} = %s").format(sql.Identifier(c)) for c in scope]
+    params: list[Any] = list(scope.values())
+    if between:
+        conds.append(sql.SQL("t.{} between %s and %s").format(sql.Identifier(between[0])))
+        params += [between[1], between[2]]
+    if keep:
+        # Compare keys with their own types (one typed array per key column), not as text:
+        # a timestamptz's text form differs between Python and Postgres.
+        types = _column_types(conn, table)
+        aliases = [sql.Identifier(f"k{i}") for i in range(len(keys))]
+        conds.append(sql.SQL("not exists (select 1 from unnest({arrays}) as k({aliases}) where {match})").format(
+            arrays=sql.SQL(", ").join(sql.SQL("%s::{}[]").format(sql.SQL(types[k])) for k in keys),
+            aliases=sql.SQL(", ").join(aliases),
+            match=sql.SQL(" and ").join(sql.SQL("t.{} = k.{}").format(sql.Identifier(k), a)
+                                        for k, a in zip(keys, aliases, strict=True)),
+        ))
+        params += [[r[k] for r in keep] for k in keys]
+    q = sql.SQL("delete from garmin.{t} as t where t.account_id = %s and {where}").format(
+        t=sql.Identifier(table), where=sql.SQL(" and ").join(conds)
     )
-    q = sql.SQL("delete from garmin.{t} where account_id = %s and {where} and {key} <> all(%s::text[])").format(
-        t=sql.Identifier(table), where=where, key=key_expr
-    )
-    return conn.execute(q, (acct, *scope.values(), keep_ids)).rowcount
+    return conn.execute(q, (acct, *params)).rowcount
 
 
 def encode_raw(payload: Any) -> tuple[bytes, str]:

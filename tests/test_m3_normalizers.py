@@ -42,7 +42,19 @@ def test_weigh_ins_convert_grams():
 
 
 def test_blood_pressure_empty_month():
-    assert norm("blood_pressure", "2026-09") == {}
+    # No readings, but the month is a full listing: anything stored for it was deleted in Garmin.
+    assert norm("blood_pressure", "2026-09") == {
+        "blood_pressure": [],
+        "_replace": [{"table": "blood_pressure",
+                      "between": ("calendar_date", dt.date(2026, 9, 1), dt.date(2026, 9, 30))}],
+    }
+
+
+def test_weigh_ins_replace_their_month():
+    result = norm("body_composition", "2025-01")
+    assert result["_replace"] == [{"table": "weigh_ins",
+                                   "between": ("calendar_date", dt.date(2025, 1, 1), dt.date(2025, 1, 31))}]
+    assert REGISTRY["body_composition"].normalize({"unexpected": 1}, "2025-01") == {}  # not a listing: keep rows
 
 
 def test_vo2max_history():
