@@ -1,7 +1,9 @@
 """`gds` command line, run on your own machine.
 
-    uv run python -m gds.cli setup    # secrets: .env, Vercel env vars, Supabase Vault
+    uv run python -m gds.cli migrate  # apply supabase/migrations to the database
+    uv run python -m gds.cli setup    # secrets: .env, worker login, Vercel env, Supabase Vault, GitHub
     uv run python -m gds.cli auth     # one-time Garmin login, stores an encrypted token
+    uv run python -m gds.cli doctor   # check every part of the deployment
     uv run python -m gds.cli strava-auth  # optional: one-time Strava authorization (W-9)
     uv run python -m gds.cli tick             # one sync tick on this machine
     uv run python -m gds.cli call tick        # POST to the deployed app (GDS_BASE_URL)
@@ -72,8 +74,9 @@ def _vercel() -> str:
 
 def cmd_setup(args: argparse.Namespace) -> None:
     import psycopg
+    from psycopg import sql
 
-    from gds import crypto
+    from gds import crypto, ops
 
     env = read_env()
 
@@ -93,10 +96,16 @@ def cmd_setup(args: argparse.Namespace) -> None:
         sys.exit(f"failed.\n{reason}\nCheck the password in .env (special characters must be URL-encoded).")
     print("ok")
 
+    with psycopg.connect(url, prepare_threshold=None) as conn:
+        pending = ops.pending_migrations(conn)
+    if pending:
+        sys.exit(f"{len(pending)} database migration(s) pending. Run first: uv run python -m gds.cli migrate")
+
     generated = {
         "TOKEN_ENC_KEY": crypto.new_key,
         "TICK_SECRET": lambda: secrets.token_urlsafe(32),
         "MCP_PATH_SECRET": lambda: secrets.token_urlsafe(24),
+        "WORKER_DATABASE_URL": lambda: ops.worker_url(url, secrets.token_urlsafe(32)),
     }
     for name, make in generated.items():
         if not env.get(name):
@@ -105,13 +114,22 @@ def cmd_setup(args: argparse.Namespace) -> None:
     write_env(env)
     print(f"Wrote {ENV_FILE.name} (git-ignored).")
 
+    base = _configured(env, "GDS_BASE_URL").rstrip("/")
     optional = [k for k in OPTIONAL_VARS if env.get(k)]
-    print("Storing secrets in Supabase Vault...", end=" ", flush=True)
-    with psycopg.connect(env["DATABASE_URL"], prepare_threshold=None) as conn:
+    print("Setting the worker login and storing secrets in Supabase Vault...", end=" ", flush=True)
+    with psycopg.connect(url, prepare_threshold=None) as conn:
+        # A SCRAM verifier, not the password: the plaintext never reaches the server or its logs.
+        verifier = ops.scram_verifier(ops.url_password(env["WORKER_DATABASE_URL"]))
+        conn.execute(sql.SQL("alter role gds_worker with login password {}").format(sql.Literal(verifier)))
         _vault_upsert(conn, "gds_tick_secret", env["TICK_SECRET"], "garmin-datastore tick auth")
+        if base:
+            _vault_upsert(conn, "gds_tick_url", f"{base}/api/tick", "garmin-datastore tick endpoint")
         for k in optional:
             _vault_upsert(conn, OPTIONAL_VARS[k], env[k], f"garmin-datastore {k}")
     print("ok" + (f" (+ {', '.join(optional)})" if optional else ""))
+    if not base:
+        print("  GDS_BASE_URL isn't set yet, so the scheduler has no URL to call. After your first deploy,\n"
+              "  put the production URL in .env and run setup again.")
 
     vercel = _vercel()
     if (ROOT / ".vercel" / "project.json").exists():
@@ -123,19 +141,79 @@ def cmd_setup(args: argparse.Namespace) -> None:
         print(f"Linking Vercel project '{args.project}'...")
         subprocess.run(link, cwd=ROOT, check=True)
 
-    for name in VERCEL_VARS + optional + [k for k in VERCEL_ONLY_VARS if env.get(k)]:
+    # The deployed app logs in as gds_worker; the admin DATABASE_URL stays on this machine.
+    values = {**env, "DATABASE_URL": env["WORKER_DATABASE_URL"]}
+    for name in VERCEL_VARS + optional + [k for k in VERCEL_ONLY_VARS if _configured(env, k)]:
         print(f"Setting Vercel env {name} (production)...", end=" ", flush=True)
         subprocess.run(
             [vercel, "env", "add", name, "production", "--force", "--sensitive", "--yes"],
             cwd=ROOT,
-            input=env[name],
+            input=values[name],
             text=True,
             check=True,
             capture_output=True,
         )
         print("ok")
 
-    print("\nSetup complete. Next: uv run python -m gds.cli auth")
+    if base and not args.no_github:
+        _github_secrets({"GDS_BASE_URL": base, "TICK_SECRET": env["TICK_SECRET"]})
+
+    print("\nSetup complete. Redeploy for changed Vercel settings to take effect, then check with:\n"
+          "  uv run python -m gds.cli doctor")
+
+
+def _configured(env: dict[str, str], name: str) -> str:
+    """A .env value, or '' while it's still the .env.example placeholder."""
+    value = env.get(name, "")
+    return "" if "<" in value else value
+
+
+def _github_secrets(values: dict[str, str]) -> None:
+    """Repo secrets for the daily backup tick (.github/workflows/backup-tick.yml)."""
+    gh = shutil.which("gh")
+    if not gh:
+        print("GitHub CLI not found: add GDS_BASE_URL and TICK_SECRET as repository secrets by hand "
+              "(Settings > Secrets and variables > Actions) for the backup tick.")
+        return
+    for name, value in values.items():
+        print(f"Setting GitHub secret {name}...", end=" ", flush=True)
+        res = subprocess.run([gh, "secret", "set", name], cwd=ROOT, input=value, text=True, capture_output=True)
+        print("ok" if res.returncode == 0 else f"skipped ({res.stderr.strip()[:150]})")
+
+
+def cmd_migrate(args: argparse.Namespace) -> None:
+    """Apply pending supabase/migrations/*.sql in order, each in its own transaction."""
+    import psycopg
+
+    from gds import ops
+
+    url = read_env().get("DATABASE_URL") or os.environ.get("DATABASE_URL", "")  # CI has no .env
+    if not url or "<" in url:
+        sys.exit("Set DATABASE_URL in .env first (README, step 3).")
+    with psycopg.connect(url, prepare_threshold=None, autocommit=True) as conn:
+        pending = ops.pending_migrations(conn)
+        if not pending:
+            print("Database is up to date.")
+            return
+        for m in pending:
+            print(f"{'Would apply' if args.dry_run else 'Applying'} {m.path.name}...", end=" ", flush=True)
+            if not args.dry_run:
+                ops.apply_migration(conn, m)
+            print("ok")
+
+
+def cmd_doctor(_: argparse.Namespace) -> None:
+    """Check the whole deployment: .env, database, migrations, Vault, pg_cron, token, sync, app, GitHub."""
+    from gds import ops
+
+    marks = {ops.OK: " ok ", ops.WARN: "warn", ops.FAIL: "FAIL", ops.INFO: "info"}
+
+    def emit(c: ops.Check) -> None:
+        print(f"[{marks[c.level]}] {c.name:<22} {c.detail}", flush=True)
+
+    if not ops.run_doctor(read_env(), emit):
+        sys.exit(1)
+    print("\nAll required checks passed.")
 
 
 def cmd_auth(_: argparse.Namespace) -> None:
@@ -329,7 +407,12 @@ def main() -> None:
     p_setup = sub.add_parser("setup", help="create secrets and push them to Vercel + Supabase Vault")
     p_setup.add_argument("--project", default="garmin-datastore", help="Vercel project name")
     p_setup.add_argument("--team", default=None, help="Vercel team slug (optional)")
+    p_setup.add_argument("--no-github", action="store_true", help="don't set the backup-tick repo secrets")
     p_setup.set_defaults(func=cmd_setup)
+    p_mig = sub.add_parser("migrate", help="apply pending database migrations")
+    p_mig.add_argument("--dry-run", action="store_true", help="list pending migrations without applying them")
+    p_mig.set_defaults(func=cmd_migrate)
+    sub.add_parser("doctor", help="check the whole deployment").set_defaults(func=cmd_doctor)
     sub.add_parser("auth", help="one-time Garmin login").set_defaults(func=cmd_auth)
     sub.add_parser("strava-auth", help="one-time Strava authorization (W-9)").set_defaults(func=cmd_strava_auth)
     p_call = sub.add_parser("call", help="POST to a protected endpoint, e.g. `call spike/garmin`")

@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --python 3.12 ruff check gds tests scripts
+      - run: uv run --python 3.12 pytest -q
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # scan the whole history, not just this push
+      - name: gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar xz gitleaks
+          ./gitleaks git --redact --no-banner --config .gitleaks.toml .
+
+  migrations:
+    name: Migrations on a fresh Supabase Postgres
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: supabase/postgres:17.11.0.003
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -h localhost"
+          --health-interval 5s --health-timeout 5s --health-retries 30
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Apply every migration from scratch (as a fresh fork would)
+        run: uv run --python 3.12 python -m gds.cli migrate
+      - name: Second run is a no-op
+        run: uv run --python 3.12 python -m gds.cli migrate | grep -q "up to date"
+      - name: Schema, jobs and roles are in place
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At <<'SQL'
+          select 'tables: ' || count(*) from pg_tables where schemaname = 'garmin';
+          select 'cron: ' || string_agg(jobname, ',' order by jobname) from cron.job;
+          do $$ begin
+            if (select count(*) from cron.job where jobname in ('gds_tick', 'gds_watchdog')) <> 2 then
+              raise exception 'pg_cron jobs missing'; end if;
+            if not exists (select 1 from pg_roles where rolname = 'gds_worker' and rolbypassrls) then
+              raise exception 'gds_worker missing'; end if;
+            -- a table added by a later migration is writable by the worker (default privileges)
+            create table garmin.ci_probe (id int);
+            if not has_table_privilege('gds_worker', 'garmin.ci_probe', 'insert') then
+              raise exception 'gds_worker lacks default privileges'; end if;
+            if has_schema_privilege('gds_worker', 'vault', 'usage') then
+              raise exception 'gds_worker must not reach Vault'; end if;
+            drop table garmin.ci_probe;
+          end $$;
+          select garmin.watchdog();
+          SQL

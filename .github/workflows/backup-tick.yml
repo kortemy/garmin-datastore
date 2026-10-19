@@ -1,0 +1,28 @@
+# Daily backup trigger (design §9): calls the tick endpoint in case pg_cron stops.
+# Needs repository secrets GDS_BASE_URL and TICK_SECRET (`gds setup` sets them with the GitHub CLI).
+name: Backup tick
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      GDS_BASE_URL: ${{ secrets.GDS_BASE_URL }}
+      TICK_SECRET: ${{ secrets.TICK_SECRET }}
+    steps:
+      - name: Skip when not configured
+        if: env.GDS_BASE_URL == '' || env.TICK_SECRET == ''
+        run: echo "::notice::GDS_BASE_URL / TICK_SECRET secrets not set; nothing to do."
+      - name: POST /api/tick
+        if: env.GDS_BASE_URL != '' && env.TICK_SECRET != ''
+        run: |
+          curl -fsS --max-time 300 -X POST "${GDS_BASE_URL%/}/api/tick" \
+            -H "Content-Type: application/json" -H "X-GDS-Secret: ${TICK_SECRET}" \
+            -d '{"source": "github_backup"}'

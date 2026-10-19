@@ -1,0 +1,11 @@
+# Secret scan for CI (design §10, FR-24): gitleaks' default rules, minus Garmin catalogue keys
+# in the recorded fixtures that look like API keys to the generic rule.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Garmin i18n / badge keys in test fixtures"
+paths = ['''^tests/fixtures/''']
+regexTarget = "line"
+regexes = ['''"(\w*I18nKey|badgeKey)":''']
+condition = "AND"

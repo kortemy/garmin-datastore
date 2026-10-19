@@ -92,7 +92,7 @@ def main() -> None:
 
             listed = mcp_call(c, tokens["access_token"], "tools/list")
             n_tools = len(listed.json()["result"]["tools"]) if listed.status_code == 200 else 0
-            check(n_tools == 16, "MCP tools/list with bearer")
+            check(n_tools >= 16, f"MCP tools/list with bearer ({n_tools} tools)")  # 16 reads + M5 writes
             args = {"fields": ["readiness_score", "sleep_score"]}
             called = mcp_call(c, tokens["access_token"], "tools/call",
                               {"name": "get_daily_wellness", "arguments": args})
