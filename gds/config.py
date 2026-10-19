@@ -30,6 +30,8 @@ class Settings:
     resend_api_key: str
     alert_email: str
     alert_from: str
+    strava_client_id: str
+    strava_client_secret: str
 
 
 @lru_cache
@@ -47,4 +49,6 @@ def settings() -> Settings:
         resend_api_key=_opt("RESEND_API_KEY"),
         alert_email=_opt("ALERT_EMAIL"),
         alert_from=_opt("ALERT_FROM", "Garmin Datastore <onboarding@resend.dev>"),
+        strava_client_id=_opt("STRAVA_CLIENT_ID"),
+        strava_client_secret=_opt("STRAVA_CLIENT_SECRET"),
     )

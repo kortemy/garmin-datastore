@@ -23,7 +23,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 from psycopg.types.json import Jsonb
 
-from gds import broker, engine, store, workout_builder
+from gds import broker, engine, store, strava, workout_builder
 from gds.config import settings
 from gds.db import connect
 from gds.domains import activity_domains
@@ -70,6 +70,7 @@ class Plan:
     preview: str
     run: Callable[[Source], Outcome]
     details: dict[str, Any] = field(default_factory=dict)  # extra dry-run info (e.g. built workout)
+    garmin: bool = True  # False: `run` gets no Garmin session (Strava-only writes)
 
 
 # ---------------------------------------------------------------- executor
@@ -80,8 +81,6 @@ def _account(conn: psycopg.Connection) -> dict[str, Any]:
                        (settings().account_label,)).fetchone()
     if not row:
         raise ToolError("No Garmin account is configured for this deployment.")
-    if row["status"] == "needs_reauth":
-        raise ToolError("Garmin no longer accepts the stored login; the owner must run `gds auth` before writing.")
     return row
 
 
@@ -133,29 +132,22 @@ def execute(tool: str, key: str, inputs: dict[str, Any], make_plan: Callable[[Ct
         conn.execute("update garmin.write_log set preview = %s where account_id = %s and idempotency_key = %s",
                      (plan.preview, acct["id"], key))
 
-        try:
-            client, token = broker.open_client(conn, acct["id"])
-        except SourceError as e:
-            _finish(conn, acct["id"], key, "failed", error=f"{type(e).__name__}: {e}")
-            raise ToolError(_explain(e)) from e
-        src = Source(client, min_interval_s=0.3)
-        try:
+        if not plan.garmin:  # e.g. Strava-only writes: no Garmin session needed
+            write_id, outcome, synced = _run(conn, acct["id"], key, plan, None)
+        else:
+            if acct["status"] == "needs_reauth":
+                msg = "Garmin no longer accepts the stored login; the owner must run `gds auth` before writing."
+                _finish(conn, acct["id"], key, "failed", error=msg)
+                raise ToolError(msg)
             try:
-                outcome = plan.run(src)
-            except Unclear as e:
-                conn.execute("update garmin.write_log set error = %s where account_id = %s and idempotency_key = %s",
-                             (str(e)[:1000], acct["id"], key))
-                raise
-            except (SourceError, ToolError) as e:
+                client, token = broker.open_client(conn, acct["id"])
+            except SourceError as e:
                 _finish(conn, acct["id"], key, "failed", error=f"{type(e).__name__}: {e}")
                 raise ToolError(_explain(e)) from e
-            write_id = _finish(conn, acct["id"], key, "ok", outcome=outcome)
-            if outcome.after:
-                outcome.after(conn, write_id)
-            synced = _resync(conn, src, acct["id"], outcome.resync)
-            conn.execute("update garmin.write_log set resync = %s where id = %s", (Jsonb(synced), write_id))
-        finally:
-            broker.persist_if_changed(conn, acct["id"], client, token)
+            try:
+                write_id, outcome, synced = _run(conn, acct["id"], key, plan, Source(client, min_interval_s=0.3))
+            finally:
+                broker.persist_if_changed(conn, acct["id"], client, token)
 
     result: dict[str, Any] = {"status": "ok", "write_id": write_id, "written": plan.preview}
     if outcome.entity_kind:
@@ -163,6 +155,26 @@ def execute(tool: str, key: str, inputs: dict[str, Any], make_plan: Callable[[Ct
     result |= outcome.extra
     result["synced"] = synced
     return result
+
+
+def _run(conn: psycopg.Connection, acct_id: uuid.UUID, key: str, plan: Plan,
+         src: Source | None) -> tuple[int, Outcome, list[dict[str, Any]]]:
+    """Perform the write, record the outcome, then resync what it touched."""
+    try:
+        outcome = plan.run(src)  # type: ignore[arg-type]  # None only for writes that don't touch Garmin
+    except Unclear as e:
+        conn.execute("update garmin.write_log set error = %s where account_id = %s and idempotency_key = %s",
+                     (str(e)[:1000], acct_id, key))
+        raise
+    except (SourceError, ToolError) as e:
+        _finish(conn, acct_id, key, "failed", error=f"{type(e).__name__}: {e}")
+        raise ToolError(_explain(e)) from e
+    write_id = _finish(conn, acct_id, key, "ok", outcome=outcome)
+    if outcome.after:
+        outcome.after(conn, write_id)
+    synced = _resync(conn, src, acct_id, outcome.resync) if src is not None else []
+    conn.execute("update garmin.write_log set resync = %s where id = %s", (Jsonb(synced), write_id))
+    return write_id, outcome, synced
 
 
 def _explain(e: Exception) -> str:
@@ -881,6 +893,84 @@ def manage_gear(key: str, action: str, gear_uuid: str | None = None, brand: str 
     return execute("manage_gear", key, inputs, plan, dry_run)
 
 
+# ---------------------------------------------------------------- W-9 Strava
+
+
+def _strava_client(ctx: Ctx) -> strava.StravaClient:
+    return strava.StravaClient(strava.access_token(ctx.conn, ctx.acct_id), ctx.conn, ctx.acct_id)
+
+
+def _strava_put(ctx: Ctx, strava_id: int, fields: dict[str, Any]) -> dict[str, Any]:
+    client = _strava_client(ctx)
+    try:
+        resp = client.update(strava_id, fields)
+    finally:
+        client.close()
+    # Keep only what we changed; the full response carries maps and efforts we don't store (§8.4).
+    return {k: resp.get(k) for k in ("id", "name", "description")}
+
+
+def update_strava_activity(key: str, activity_id: int, name: str | None = None, description: str | None = None,
+                           also_garmin: bool = False, dry_run: bool = False) -> dict[str, Any]:
+    inputs = locals().copy()
+    inputs.pop("key")
+    inputs.pop("dry_run")
+
+    def plan(ctx: Ctx) -> Plan:
+        if name is None and description is None:
+            raise ToolError("Nothing to change: give a name and/or a description.")
+        if name is not None and not 1 <= len(name.strip()) <= 255:
+            raise ToolError("name: 1-255 characters")
+        if description is not None and len(description) > 10_000:
+            raise ToolError("description: at most 10000 characters")
+        act = ctx.conn.execute(
+            """select activity_id, name, type_key, start_utc, start_local from garmin.activities
+               where account_id = %s and activity_id = %s""",
+            (ctx.acct_id, activity_id),
+        ).fetchone()
+        if not act or not act["start_utc"]:
+            raise ToolError(f"Garmin activity {activity_id} isn't in the database (yet). Check list_activities.")
+        client = _strava_client(ctx)
+        try:
+            match = strava.find_activity(client, act["start_utc"], activity_id)
+            current = client.activity(int(match["id"]))
+        finally:
+            client.close()
+        sid = int(match["id"])
+        fields: dict[str, Any] = {}
+        changes: list[str] = []
+        if name is not None:
+            fields["name"] = name.strip()
+            changes.append(f"title {current.get('name')!r} → {name.strip()!r}")
+        if description is not None:
+            fields["description"] = description
+            changes.append(f"description → {description!r}"
+                           + (" (replaces the current one)" if current.get("description") else ""))
+        when = f"{act['start_local']:%a %Y-%m-%d %H:%M}" if act["start_local"] else ""
+        preview = (f"Update Strava activity {sid} ({current.get('sport_type') or act['type_key']}, {when}): "
+                   + "; ".join(changes))
+        undo = {k: current.get(k) or "" for k in fields}
+
+        def run(_: Source | None) -> Outcome:
+            resp = _strava_put(ctx, sid, fields)
+            return Outcome(resp, "strava_activity", str(sid),
+                           act["start_local"].date() if act["start_local"] else None, False, undo=undo,
+                           extra={"strava_activity_id": sid, "strava_url": f"https://www.strava.com/activities/{sid}"})
+        details = {"strava_activity": {"id": sid, "url": f"https://www.strava.com/activities/{sid}",
+                                       "current_name": current.get("name"),
+                                       "current_description": current.get("description")}}
+        return Plan(preview, run, details, garmin=False)
+
+    result = execute("update_strava_activity", key, inputs, plan, dry_run)
+    if also_garmin:
+        garmin = update_activity(f"{key}:garmin" if key else "", activity_id, name=name, description=description,
+                                 dry_run=dry_run)
+        result["garmin"] = garmin
+        if dry_run:
+            result["preview"] += f"\nand on Garmin: {garmin['preview']}"
+    return result
+
+
 # ---------------------------------------------------------------- undo
 
 
@@ -901,7 +991,7 @@ def _forget_activity(conn: psycopg.Connection, acct_id: uuid.UUID, activity_id: 
 
 
 UNDOABLE = {"log_weight", "log_hydration", "log_blood_pressure", "create_workout", "schedule_workout",
-            "create_manual_activity", "update_activity"}
+            "create_manual_activity", "update_activity", "update_strava_activity"}
 
 
 def undo_write(key: str, write_id: int, dry_run: bool = False) -> dict[str, Any]:
@@ -921,6 +1011,14 @@ def undo_write(key: str, write_id: int, dry_run: bool = False) -> dict[str, Any]
 
         if w["tool"] == "schedule_workout":
             return _unschedule_plan(ctx, int(w["entity_id"]))
+        if w["tool"] == "update_strava_activity":
+            sid = int(w["entity_id"])
+
+            def run_strava(_: Source | None) -> Outcome:
+                resp = _strava_put(ctx, sid, u)
+                return Outcome(resp, "strava_activity", str(sid), w["entity_date"], after=_mark_undone(w["id"]))
+            return Plan(f"Undo {what}: restore the previous Strava " + " and ".join(sorted(u)), run_strava,
+                        garmin=False)
         if w["tool"] == "create_workout":
             return _delete_workout_plan(ctx, int(w["entity_id"]))
 

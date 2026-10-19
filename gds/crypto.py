@@ -19,10 +19,11 @@ def _key(b64: str) -> bytes:
     return key
 
 
-def encrypt(plaintext: str, key_b64: str) -> tuple[bytes, bytes]:
+def encrypt(plaintext: str, key_b64: str, aad: bytes = _AAD) -> tuple[bytes, bytes]:
+    """`aad` binds a ciphertext to its use (Garmin vs Strava token), so one can't stand in for the other."""
     nonce = os.urandom(12)
-    return AESGCM(_key(key_b64)).encrypt(nonce, plaintext.encode(), _AAD), nonce
+    return AESGCM(_key(key_b64)).encrypt(nonce, plaintext.encode(), aad), nonce
 
 
-def decrypt(ciphertext: bytes, nonce: bytes, key_b64: str) -> str:
-    return AESGCM(_key(key_b64)).decrypt(nonce, ciphertext, _AAD).decode()
+def decrypt(ciphertext: bytes, nonce: bytes, key_b64: str, aad: bytes = _AAD) -> str:
+    return AESGCM(_key(key_b64)).decrypt(nonce, ciphertext, aad).decode()

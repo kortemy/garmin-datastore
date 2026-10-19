@@ -102,7 +102,7 @@ def test_gear_is_written_as_json():
 
 def test_summary_detail_partial_row():
     (row,) = norm("activity_summary", "running__summary", RUN_ID)["activities"]
-    assert set(row) == {"activity_id", "description", "rpe", "feel", "min_hr"}
+    assert set(row) == {"activity_id", "description", "rpe", "feel", "min_hr", "workout_id", "workout_compliance"}
 
 
 def test_fit_payload_becomes_file_row():

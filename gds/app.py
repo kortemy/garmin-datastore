@@ -18,7 +18,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel
 
-from gds import alerts, engine, oauth, spike, status, tools, workout_builder, writes
+from gds import alerts, engine, oauth, spike, status, strava, tools, workout_builder, writes
 from gds.config import settings
 from gds.db import connect
 
@@ -254,10 +254,24 @@ def _write_tools(mcp: MCPServer) -> None:
         return writes.manage_gear(idempotency_key, action, gear_uuid, brand, model, name, gear_type,
                                   first_use_date, max_distance_km, default_for, dry_run)
 
+    if strava.configured():
+        @mcp.tool(annotations=CHANGE, description=_confirm(
+            "W-9. Set the title and/or description of an activity's copy on Strava (Garmin pushes activities to "
+            "Strava on upload; later Garmin edits don't follow). activity_id is the GARMIN activity id; the "
+            "matching Strava activity is found by start time and the dry run names it and shows its current "
+            "title/description. also_garmin=true writes the same text to the Garmin activity. Typical use: "
+            "title the session after its planned workout (get_calendar) and summarise what was done "
+            "(get_activity)."))
+        def update_strava_activity(idempotency_key: str, activity_id: int, name: str | None = None,
+                                   description: str | None = None, also_garmin: bool = False,
+                                   dry_run: bool = True) -> dict[str, Any]:
+            return writes.update_strava_activity(idempotency_key, activity_id, name, description, also_garmin,
+                                                 dry_run)
+
     @mcp.tool(annotations=CHANGE, description=_confirm(
         "Reverse an earlier write by write_id (see get_write_log): deletes a weigh-in, blood pressure reading, "
         "workout, schedule or manual activity this system created, subtracts logged water, or restores an "
-        "activity's previous name/description/type/RPE/gear."))
+        "activity's previous name/description/type/RPE/gear, or a Strava activity's previous title/description."))
     def undo_write(idempotency_key: str, write_id: int, dry_run: bool = True) -> dict[str, Any]:
         return writes.undo_write(idempotency_key, write_id, dry_run)
 

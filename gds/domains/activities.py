@@ -155,7 +155,8 @@ def _aid(key: str) -> int:
 
 
 def _detail(raw: Any, key: str) -> Rows:
-    """get_activity: fields the list doesn't carry (description, RPE, feel, min HR)."""
+    """get_activity: fields the list doesn't carry (description, RPE, feel, min HR, and the
+    planned workout it was run from with Garmin's compliance score)."""
     if not isinstance(raw, dict) or not raw.get("activityId"):
         return {}
     s = raw.get("summaryDTO") or {}
@@ -167,6 +168,8 @@ def _detail(raw: Any, key: str) -> Rows:
                 "rpe": to_int(s.get("directWorkoutRpe")),
                 "feel": to_int(s.get("directWorkoutFeel")),
                 "min_hr": num(s.get("minHR")),
+                "workout_id": to_int((raw.get("metadataDTO") or {}).get("associatedWorkoutId")),
+                "workout_compliance": num(s.get("directWorkoutComplianceScore")),
             }
         ]
     }

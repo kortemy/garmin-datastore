@@ -2,6 +2,7 @@
 
     uv run python -m gds.cli setup    # secrets: .env, Vercel env vars, Supabase Vault
     uv run python -m gds.cli auth     # one-time Garmin login, stores an encrypted token
+    uv run python -m gds.cli strava-auth  # optional: one-time Strava authorization (W-9)
     uv run python -m gds.cli tick             # one sync tick on this machine
     uv run python -m gds.cli call tick        # POST to the deployed app (GDS_BASE_URL)
     uv run python -m gds.cli connector-url    # Claude connector URL (contains a secret)
@@ -28,7 +29,8 @@ OPTIONAL_VARS = {
     "ALERT_FROM": "gds_alert_from",
 }
 # Optional, Vercel only: connector OAuth (owner password hash, public base URL).
-VERCEL_ONLY_VARS = ["OWNER_PASSWORD_HASH", "GDS_BASE_URL", "LEGACY_SECRET_CONNECTOR"]
+VERCEL_ONLY_VARS = ["OWNER_PASSWORD_HASH", "GDS_BASE_URL", "LEGACY_SECRET_CONNECTOR", "STRAVA_CLIENT_ID",
+                    "STRAVA_CLIENT_SECRET"]
 
 
 def _vault_upsert(conn, name: str, value: str, description: str) -> None:
@@ -165,6 +167,87 @@ def cmd_auth(_: argparse.Namespace) -> None:
         print(f"Access token valid until {expiry:%Y-%m-%d %H:%M} UTC (refreshes automatically).")
 
 
+def cmd_strava_auth(_: argparse.Namespace) -> None:
+    """One-time Strava authorization for W-9 (design §8.4). Asks for the API app's client id
+    and secret if .env lacks them (secret hidden), opens Strava's consent page, and catches the
+    redirect on a one-shot local listener. The token is stored encrypted in the database."""
+    import time
+    import urllib.parse
+    import webbrowser
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    env = read_env()
+    changed = False
+    if not env.get("STRAVA_CLIENT_ID"):
+        env["STRAVA_CLIENT_ID"] = input("Strava Client ID (from strava.com/settings/api): ").strip()
+        changed = True
+    if not env.get("STRAVA_CLIENT_SECRET"):
+        env["STRAVA_CLIENT_SECRET"] = getpass.getpass("Strava Client Secret (hidden): ").strip()
+        changed = True
+    if changed:
+        write_env(env)
+        print("Saved the Strava app credentials to .env.")
+    load_env_into_process()
+    from gds import strava, tokens
+    from gds.config import settings
+    from gds.db import connect
+
+    state = secrets.token_urlsafe(16)
+    result: dict[str, str] = {}
+
+    class Callback(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802 - http.server API
+            url = urllib.parse.urlparse(self.path)
+            if url.path != "/strava/callback":
+                self.send_response(404)
+                self.end_headers()
+                return
+            result.update({k: v[0] for k, v in urllib.parse.parse_qs(url.query).items()})
+            ok = "code" in result and result.get("state") == state
+            body = ("Strava authorized for garmin-datastore. You can close this tab." if ok
+                    else "Authorization was cancelled or didn't match; check the terminal.")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(body.encode())
+
+        def log_message(self, *args: object) -> None:
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Callback)  # Strava always allows localhost redirects
+    server.timeout = 5
+    redirect = f"http://127.0.0.1:{server.server_port}/strava/callback"
+    url = strava.authorize_url(redirect, state)
+    print("\nOpening Strava in your browser. Approve both permissions (view and edit activities).")
+    print(f"If it doesn't open, visit:\n  {url}\n")
+    webbrowser.open(url)
+    deadline = time.monotonic() + 300
+    while not result and time.monotonic() < deadline:
+        server.handle_request()
+    server.server_close()
+
+    if not result:
+        sys.exit("No answer from Strava within 5 minutes; run strava-auth again.")
+    if result.get("state") != state:
+        sys.exit("The reply didn't match this request (state mismatch); run strava-auth again.")
+    if "code" not in result:
+        sys.exit(f"Strava didn't authorize: {result.get('error', 'cancelled')}.")
+    granted = set(result.get("scope", "").split(","))
+    missing = set(strava.SCOPES.split(",")) - granted
+    if missing:
+        sys.exit(f"Strava granted {', '.join(sorted(granted)) or 'nothing'}; missing {', '.join(sorted(missing))}. "
+                 "Run strava-auth again and leave both activity boxes ticked.")
+
+    token = strava.exchange_code(result["code"])
+    token["scope"] = result["scope"]
+    with connect() as conn:
+        acct = tokens.account_id(conn, settings().account_label)
+        strava.save_token(conn, acct, token)
+    athlete = (token.get("athlete") or {}).get("id")
+    print(f"Strava authorized (athlete {athlete}). Token stored encrypted.")
+    print("Next: uv run python -m gds.cli setup   (pushes STRAVA_CLIENT_ID / _SECRET to Vercel), then deploy.")
+
+
 def _base_url(args: argparse.Namespace) -> str:
     base = args.base or os.environ.get("GDS_BASE_URL", "")
     if not base:
@@ -248,6 +331,7 @@ def main() -> None:
     p_setup.add_argument("--team", default=None, help="Vercel team slug (optional)")
     p_setup.set_defaults(func=cmd_setup)
     sub.add_parser("auth", help="one-time Garmin login").set_defaults(func=cmd_auth)
+    sub.add_parser("strava-auth", help="one-time Strava authorization (W-9)").set_defaults(func=cmd_strava_auth)
     p_call = sub.add_parser("call", help="POST to a protected endpoint, e.g. `call spike/garmin`")
     p_call.add_argument("path")
     p_call.add_argument("--body", default=None, help="JSON body")

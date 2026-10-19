@@ -16,6 +16,7 @@ dependencies = [
     "fitdecode>=0.10",
     "python-multipart>=0.0.9",
     "anyio>=4",
+    "httpx>=0.27",
 ]
 
 [dependency-groups]
