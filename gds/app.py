@@ -1,7 +1,7 @@
 """Vercel entrypoint: health, scheduler tick, manual sync, OAuth owner login, and the MCP connector.
 
 Connector URL: {GDS_BASE_URL}/mcp (OAuth 2.1). The legacy secret-path URL
-(/s/<MCP_PATH_SECRET>/mcp, no OAuth) stays only while LEGACY_SECRET_CONNECTOR=1.
+(/s/<MCP_PATH_SECRET>/mcp, no OAuth) is off unless LEGACY_SECRET_CONNECTOR=1.
 """
 
 import hmac
@@ -312,7 +312,7 @@ if _base_url:
 
 _legacy_secret = os.environ.get("MCP_PATH_SECRET", "").strip()
 legacy_app = None
-if _legacy_secret and os.environ.get("LEGACY_SECRET_CONNECTOR", "1") == "1":
+if _legacy_secret and os.environ.get("LEGACY_SECRET_CONNECTOR", "0") == "1":
     legacy_mcp = build_server()
     servers.append(legacy_mcp)
     legacy_app = _http_app(legacy_mcp)

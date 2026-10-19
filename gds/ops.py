@@ -289,6 +289,10 @@ def check_app(env: dict[str, str]) -> Iterator[Check]:
     except (urllib.error.URLError, TimeoutError) as e:
         yield Check(FAIL, "app", f"{base} unreachable: {e}")
         return
+    if code in (401, 403):
+        yield Check(FAIL, "app", f"GET /api/health returned {code}: Vercel Deployment Protection covers production; "
+                                 "set it to Standard Protection (README step 6)")
+        return
     if code != 200:
         yield Check(FAIL, "app", f"GET /api/health returned {code}: deploy first (README step 6)")
         return

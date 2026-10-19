@@ -7,12 +7,13 @@
     uv run python -m gds.cli strava-auth  # optional: one-time Strava authorization (W-9)
     uv run python -m gds.cli tick             # one sync tick on this machine
     uv run python -m gds.cli call tick        # POST to the deployed app (GDS_BASE_URL)
-    uv run python -m gds.cli connector-url    # Claude connector URL (contains a secret)
+    uv run python -m gds.cli connector-url    # Claude connector URL (OAuth)
 
 Secrets are typed into hidden prompts or generated locally. They are never printed.
 """
 
 import argparse
+import datetime as dt
 import getpass
 import os
 import secrets
@@ -81,10 +82,10 @@ def cmd_setup(args: argparse.Namespace) -> None:
     env = read_env()
 
     url = env.get("DATABASE_URL", "")
-    if not url or "YOUR-PASSWORD" in url:
+    if not url or "YOUR-PASSWORD" in url or "<" in url:
         sys.exit(
-            "\nDATABASE_URL in .env still needs your database password.\n"
-            "Open .env, replace [YOUR-PASSWORD] with it, save, and run setup again."
+            "\nDATABASE_URL in .env still needs your Supabase connection string and database password.\n"
+            "See README step 3, save .env, and run setup again."
         )
 
     print("Checking the database connection...", end=" ", flush=True)
@@ -216,7 +217,7 @@ def cmd_doctor(_: argparse.Namespace) -> None:
     print("\nAll required checks passed.")
 
 
-def cmd_auth(_: argparse.Namespace) -> None:
+def cmd_auth(args: argparse.Namespace) -> None:
     load_env_into_process()
     from garminconnect import Garmin
 
@@ -239,10 +240,43 @@ def cmd_auth(_: argparse.Namespace) -> None:
     with connect() as conn:
         acct = tokens.ensure_account(conn, settings().account_label)
         tokens.save(conn, acct, token_json, event="login")
+        since = conn.execute(
+            "update garmin.accounts set backfill_start = coalesce(%s::date, backfill_start, %s::date) where id = %s "
+            "returning backfill_start",
+            (args.since, _default_since(), acct),
+        ).fetchone()["backfill_start"]
     expiry = tokens.access_expiry(token_json)
     print(f"Logged in. Encrypted token stored for account '{settings().account_label}'.")
     if expiry:
         print(f"Access token valid until {expiry:%Y-%m-%d %H:%M} UTC (refreshes automatically).")
+    print(f"History is synced from {since} (change with: uv run python -m gds.cli backfill --since YYYY-MM-DD).")
+
+
+def _default_since() -> dt.date:
+    today = dt.date.today()
+    return today.replace(year=today.year - 2, day=1)
+
+
+def _iso_date(value: str) -> dt.date:
+    try:
+        return dt.date.fromisoformat(value)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(f"not a date (YYYY-MM-DD): {value}") from e
+
+
+def cmd_backfill(args: argparse.Namespace) -> None:
+    """Set how far back history is synced. The next tick creates the missing work units."""
+    load_env_into_process()
+    from gds import tokens
+    from gds.config import settings
+    from gds.db import connect
+
+    with connect() as conn:
+        acct = tokens.account_id(conn, settings().account_label)
+        old = conn.execute("select backfill_start from garmin.accounts where id = %s", (acct,)).fetchone()
+        conn.execute("update garmin.accounts set backfill_start = %s where id = %s", (args.since, acct))
+    print(f"History start: {old['backfill_start'] or 'recent days only'} -> {args.since}. "
+          "The next ticks fetch the missing days (about 200 work units per tick).")
 
 
 def cmd_strava_auth(_: argparse.Namespace) -> None:
@@ -398,7 +432,10 @@ def cmd_renormalize(args: argparse.Namespace) -> None:
 
 def cmd_connector_url(args: argparse.Namespace) -> None:
     load_env_into_process()
-    print(f"{_base_url(args)}/s/{os.environ['MCP_PATH_SECRET']}/mcp")
+    if args.legacy:  # only served with LEGACY_SECRET_CONNECTOR=1
+        print(f"{_base_url(args)}/s/{os.environ['MCP_PATH_SECRET']}/mcp")
+    else:
+        print(f"{_base_url(args)}/mcp")
 
 
 def main() -> None:
@@ -413,7 +450,13 @@ def main() -> None:
     p_mig.add_argument("--dry-run", action="store_true", help="list pending migrations without applying them")
     p_mig.set_defaults(func=cmd_migrate)
     sub.add_parser("doctor", help="check the whole deployment").set_defaults(func=cmd_doctor)
-    sub.add_parser("auth", help="one-time Garmin login").set_defaults(func=cmd_auth)
+    p_auth = sub.add_parser("auth", help="one-time Garmin login")
+    p_auth.add_argument("--since", type=_iso_date, default=None,
+                        help="sync history from this date (first login default: 2 years back)")
+    p_auth.set_defaults(func=cmd_auth)
+    p_back = sub.add_parser("backfill", help="change how far back history is synced")
+    p_back.add_argument("--since", type=_iso_date, required=True, help="YYYY-MM-DD")
+    p_back.set_defaults(func=cmd_backfill)
     sub.add_parser("strava-auth", help="one-time Strava authorization (W-9)").set_defaults(func=cmd_strava_auth)
     p_call = sub.add_parser("call", help="POST to a protected endpoint, e.g. `call spike/garmin`")
     p_call.add_argument("path")
@@ -428,8 +471,9 @@ def main() -> None:
     p_ren = sub.add_parser("renormalize", help="rebuild typed rows from stored raw payloads")
     p_ren.add_argument("domains", nargs="+")
     p_ren.set_defaults(func=cmd_renormalize)
-    p_url = sub.add_parser("connector-url", help="print the Claude connector URL (contains a secret)")
+    p_url = sub.add_parser("connector-url", help="print the Claude connector URL")
     p_url.add_argument("--base", default=None, help="deployed app URL (or GDS_BASE_URL)")
+    p_url.add_argument("--legacy", action="store_true", help="the old secret-path URL (contains a secret)")
     p_url.set_defaults(func=cmd_connector_url)
     args = parser.parse_args()
     args.func(args)

@@ -5,6 +5,7 @@ os.environ.setdefault("TOKEN_ENC_KEY", "A" * 43 + "=")
 os.environ.setdefault("TICK_SECRET", "tick-secret")
 os.environ.setdefault("MCP_PATH_SECRET", "path-secret")
 os.environ.setdefault("GDS_BASE_URL", "https://gds.example.test")
+os.environ.setdefault("LEGACY_SECRET_CONNECTOR", "1")  # the tool tests go through the secret-path mount
 
 import pytest
 from fastapi.testclient import TestClient

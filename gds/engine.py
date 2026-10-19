@@ -396,8 +396,11 @@ def run_tick(trigger: str) -> dict[str, Any]:
             status, error = "failed", f"auth: {e}"
             _set_account_status(conn, acct["id"], "needs_reauth", str(e)[:200])
             raise_alert(conn, acct["id"], "needs_reauth",
-                        "Garmin no longer accepts the stored token.\n\n"
-                        "Re-authenticate on your PC:\n  uv run python -m gds.cli auth\n\n"
+                        "Garmin no longer accepts the stored token, so the sync has stopped.\n\n"
+                        "To fix it, on your computer in the garmin-datastore folder run:\n"
+                        "  uv run python -m gds.cli auth\n"
+                        "and log in with your Garmin email and password. The next scheduled tick "
+                        "(within 10 minutes) resumes the sync and catches up; nothing is lost.\n\n"
                         f"Detail: {e}")
         except RateLimited as e:
             status, error = "partial", f"rate limited: {e}"
