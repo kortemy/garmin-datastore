@@ -137,8 +137,7 @@ In Claude: **Settings → Connectors → Add custom connector**, URL `https://<y
 (`gds connector-url` prints it). Claude opens a sign-in page; enter your owner password from
 step 5. The connector works in chats, projects and scheduled tasks.
 
-[`docs/claude/`](docs/claude/) has example project instructions and a weekly review task that
-use it. Write tools (weight, workouts, scheduling, activity edits, gear) always show a preview
+Write tools (weight, workouts, scheduling, activity edits, gear) always show a preview
 first and only write after you confirm; `undo_write` reverts what the system created.
 
 ### 10. Optional: Strava titles and descriptions
