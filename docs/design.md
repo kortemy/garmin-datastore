@@ -399,6 +399,50 @@ rejected with suggestions).
 - After success, the affected domain/date is queued for **immediate re-sync** (and run
   inline when it's a single cheap unit), so Supabase reflects the write (FR-19).
 
+### 8.4 Strava title & description (W-9, milestone M5b)
+
+Write-only: no Strava data is synced or stored (requirements §6). It reuses the M5 write
+path (`writes.execute`: dry run, idempotency key, `write_log`, undo).
+
+**Auth.** My own Strava API app (strava.com/settings/api). `STRAVA_CLIENT_ID` and
+`STRAVA_CLIENT_SECRET` go in `.env` → Vercel via `gds setup` (secret via a hidden prompt).
+`gds strava-auth` runs on my machine: it opens Strava's consent page with scopes
+`activity:write,activity:read_all` (`read_all` so private activities can be matched),
+catches the redirect on a one-shot `localhost` listener, exchanges the code, and stores the
+token **encrypted** (same `TOKEN_ENC_KEY`, AES-256-GCM) in a new `garmin.strava_tokens` row
+(account, ciphertext, nonce, athlete id, scopes, status, updated_at). RLS on, no reader access.
+Access tokens last ~6 h and a refresh may return a new refresh token, so refreshes follow
+the Garmin broker's rule: only under `SELECT … FOR UPDATE`, only with < 20 min left, and
+the new pair is persisted before use. A 401 / revoked grant sets `status = needs_reauth`
+and sends an alert ("run `gds strava-auth`"). Without the env vars the Strava tool isn't
+registered, so other deployments are unaffected (FR-20/21).
+
+**Tool.** `update_strava_activity(idempotency_key, activity_id, name?, description?,
+also_garmin=false, dry_run=true)`, where `activity_id` is the **Garmin** activity id.
+1. Look up the Garmin activity (`activities`: start UTC, elapsed time, type).
+2. Find its Strava copy: `GET /athlete/activities?after=…&before=…` around the start, keep
+   activities whose `start_date` is within 2 min of Garmin's start (and, if present, whose
+   `external_id` references the Garmin upload). **Exactly one** match or the tool refuses,
+   saying why (not uploaded yet, several candidates).
+3. Preview: the Strava activity (id, current title, start, type) and the new title/description;
+   with `also_garmin`, the same change on the Garmin activity.
+4. Write: `PUT /api/v3/activities/{id}` with `{name, description}`. `undo` keeps the previous
+   values, so `undo_write` restores them. With `also_garmin`, the Garmin edit is a second,
+   linked write (`<key>:garmin`) through `update_activity`.
+
+`write_log.entity_kind = 'strava_activity'`, `entity_id` = Strava id. Calls go through a small
+`StravaClient` (httpx, already installed with the MCP SDK; explicit User-Agent) with errors
+mapped like the Garmin source: 429 → retry later, 401 → re-auth, 404 → no such activity.
+Strava's per-app rate limits are orders of magnitude above this use.
+
+**Composing the text** stays with Claude (requirements §6, coaching logic): it reads the
+planned workout from `get_calendar` (same day, same sport; a direct workout id on the
+activity is used if Garmin's payload carries one, to check in M5b) and what was done from
+`get_activity`, then writes a short title and description for confirmation.
+
+**Before building:** read Strava's current API agreement (requirements §11); W-9 is dropped
+if it rules this use out.
+
 ## 9. Scheduling & monitoring
 
 | Job | Where | Schedule | What |
@@ -521,6 +565,7 @@ differed.
 | **M3** | **Everything else** | RANGE + SNAPSHOT domains: weigh-ins, BP, hydration, perf metrics, PRs, gear, devices, workouts, calendar, badges, goals… | Every endpoint in the registry is synced or explicitly `empty` |
 | **M4** | **Claude connector: reads** | OAuth; read tools; `query_sql`; update `fitness-project-instructions.md` + `weekly-review-task.md` | Weekly review produced via the connector with ≥ Notion-level detail (success criterion 3) |
 | **M5** | **Claude connector: writes** | W-1..W-3, then W-4..W-8 where they work; workout builder; write log; ownership checks | Log weight + create & schedule a workout from chat; it appears on the watch and in Supabase (criterion 4) |
+| **M5b** | **Strava titles & descriptions (W-9)** *(added 2026-10-19)* | Check Strava API terms; Strava app + `gds strava-auth`; `strava_tokens`; `update_strava_activity` with matching, preview, undo (§8.4) | From chat: a real activity's Strava title/description set from its planned workout after a preview, then restored with `undo_write` |
 | **M6** | **Ops & publish-readiness** | Watchdog, backup tick, gitleaks, README setup guide, `gds doctor`, licence | Fresh-fork deploy following README only (criterion 6); forced-failure alert test (criterion 5) |
 | **M7** | **Cut-over** *(timing per D-6)* | Switch Fitness project fully; disable local scheduled task + Notion sync; archive Notion DB | Criterion 7 |
 

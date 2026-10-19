@@ -157,9 +157,17 @@ Use cases, in priority order:
 | W-6 | Annotate activities: name, notes/description, RPE, correct activity type, assign gear | "Rename yesterday's session to 'Basketball — pickup' and note my left knee was sore" |
 | W-7 | Create manual activities for sessions done without the watch | "Log a 60-min basketball session last Tuesday" |
 | W-8 | Manage gear: add new shoes, retire old ones, set defaults per activity type | "Add new Pegasus 41, retire the old pair" |
+| W-9 | **Update the Strava copy of an activity**: title and description, written by Claude from the planned workout and what was actually done (optionally the same text on the Garmin activity) | "Title yesterday's run after the workout it was and add a short summary on Strava" |
 
-W-1 to W-3 are **must-have** for v1. W-4 to W-8 are **should-have**, included where
-the Garmin API supports them reliably (to be confirmed in the design).
+W-1 to W-3 are **must-have** for v1. W-4 to W-9 are **should-have**, included where
+the API supports them reliably (to be confirmed in the design).
+
+W-9 is a **write-only** link to Strava. Garmin pushes an activity to Strava when it
+uploads; later edits in Garmin don't follow it, so Strava is updated directly through
+Strava's API with my own API app (`activity:write`). Only what is needed to find the
+matching Strava activity (its id and start time) is read from Strava, and none of it
+is stored beyond the write log. The FR-17 to FR-19 rules apply: confirm first, idempotent,
+logged, and undoable (the previous title and description are kept).
 
 **FR-17. Writes are explicit and confirmed.** Claude only writes when I ask, and
 states exactly what it will write before doing it (the connector's tool descriptions
@@ -240,7 +248,8 @@ mapping/normalisation logic.
 - **Destructive writes to Garmin**: deleting activities or health records (FR-18).
 - **Multi-user hosting in v1.** One account per deployment. Multi-user is *designed
   for* (§4.7) but not built.
-- **Strava sync.** Strava stays as the Fitness project's live connector.
+- **Strava data sync.** Strava data isn't copied into the database; Strava's own connector
+  stays the Fitness project's way to read it. The only Strava link is the W-9 write.
 - **A UI or dashboard.** The database and Claude are the interface for v1.
 - **Real-time sync** (within minutes of a watch upload).
 - **Coaching/analysis logic.** Claude does the reasoning; this project supplies data
@@ -326,7 +335,7 @@ possible (raw data partitioned by date).
 | D-4 | **MFA** | None on the account. |
 | D-5 | **Repo** | New **private** GitHub repo, `garmin-datastore`, under my account. Publish-ready (FR-24). |
 | D-6 | **Cut-over** | Decide at the end of the project. |
-| D-7 | **Writes** | In scope: W-1 to W-3 must-have, W-4 to W-8 should-have. |
+| D-7 | **Writes** | In scope: W-1 to W-3 must-have, W-4 to W-9 should-have. W-9 (Strava title/description) added 2026-10-19 after M5. |
 | D-8 | **Reusability** | Single-tenant deployments now; account-scoped schema + swappable source adapter for later. |
 | D-9 | **History** | ~20 months, activities not continuous. Full backfill fits the free tier (§9). Cold storage for 1y+ data only if volume becomes a problem. |
 | D-10 | **Licence** | MIT. |
@@ -346,6 +355,8 @@ possible (raw data partitioned by date).
 | Token expiry/invalidation | Sync stops | FR-10/11: auto-refresh + email alert |
 | Claude custom connector auth requirements | Connector harder to set up for scheduled tasks | Verify in the design which auth works for cloud scheduled tasks |
 | Supabase free projects pause after a week of inactivity | DB offline | Regular syncs keep it active; staleness alert catches it |
+| Strava's API agreement restricts some uses of API data (tightened late 2024, incl. AI-related terms) | W-9 not allowed as designed | Read the current agreement before creating the API app; W-9 reads only an activity's id and start time and stores no Strava data; drop W-9 if the terms rule it out |
+| Strava activity can't be matched to the Garmin one (not pushed yet, edited start, manual upload) | Wrong or no activity updated | Match on start time within a tight window and the same day; refuse on zero or several candidates; the preview names the Strava activity before writing |
 
 ---
 
