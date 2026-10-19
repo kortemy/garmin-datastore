@@ -11,7 +11,7 @@ through an OAuth MCP connector. Read `docs/requirements.md` (what/why) and `docs
 | M0 spike, M1 daily sync, M2 activities + FIT, M3 all other domains, M4 connector read tools + OAuth | **done, live** |
 | Full history backfill (from 2025-01-01) | **complete** (100%); pg_cron keeps it current |
 | **M5 writes to Garmin** (W-1..W-8) | **live** (design §21); scheduled workout confirmed on the watch. Open: first use from Claude chat; gear create/retire/defaults not run live |
-| **M5b Strava titles & descriptions** (W-9) | **next**, design §8.4. First step: owner reads Strava's API agreement and creates the API app |
+| M5b Strava titles & descriptions (W-9) | **live** (design §8.4, §22). Strava app 288893, authorized with `gds strava-auth`; re-run it if Strava access is revoked |
 | M7 cut-over from Notion | **partial**: local scheduled task + Notion sync off (design §20); Notion DB still to archive |
 | M6 publish-readiness | later |
 

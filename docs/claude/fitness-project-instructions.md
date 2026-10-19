@@ -51,6 +51,10 @@ The connector can also change my Garmin account: `log_weight`, `log_hydration`,
 - Tools refuse to change or remove things the system didn't create; don't try to work around
   that. If I want something of mine deleted, tell me to do it in Garmin Connect.
 - Mistakes: `undo_write` with the write's id (from `get_write_log`).
+- **Strava titles** (`update_strava_activity`, takes the Garmin activity id): when I ask, title
+  a session after the workout it was (`workout_name` in `list_activities` / `get_activity`) and
+  write a short description of what I actually did against the plan (key splits or intervals,
+  HR, `workout_compliance`). Keep it brief and factual; no hashtags or emojis unless I ask.
 
 ## How to reason
 - Always weigh **training load against recovery**. Flag mismatches: hard sessions or

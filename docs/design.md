@@ -423,8 +423,8 @@ registered, so other deployments are unaffected (FR-20/21).
 also_garmin=false, dry_run=true)`, where `activity_id` is the **Garmin** activity id.
 1. Look up the Garmin activity (`activities`: start UTC, elapsed time, type).
 2. Find its Strava copy: `GET /athlete/activities?after=…&before=…` around the start, keep
-   activities whose `start_date` is within 2 min of Garmin's start (and, if present, whose
-   `external_id` references the Garmin upload). **Exactly one** match or the tool refuses,
+   activities whose `start_date` is within 2 min of Garmin's start; ties prefer Garmin uploads
+   (`external_id` `garmin_ping_…`), then an exact start (§22). **Exactly one** match or the tool refuses,
    saying why (not uploaded yet, several candidates).
 3. Preview: the Strava activity (id, current title, start, type) and the new title/description;
    with `also_garmin`, the same change on the Garmin activity.
@@ -438,9 +438,9 @@ mapped like the Garmin source: 429 → retry later, 401 → re-auth, 404 → no 
 Strava's per-app rate limits are orders of magnitude above this use.
 
 **Composing the text** stays with Claude (requirements §6, coaching logic): it reads the
-planned workout from `get_calendar` (same day, same sport; a direct workout id on the
-activity is used if Garmin's payload carries one, to check in M5b) and what was done from
-`get_activity`, then writes a short title and description for confirmation.
+planned workout from the activity's `workout_id` / `workout_name` (Garmin's own link, §22;
+`get_calendar` for scheduled ones) and what was done from `get_activity`, then writes a short
+title and description for confirmation.
 
 **Before building:** read Strava's current API agreement (requirements §11); W-9 is dropped
 if it rules this use out.
@@ -771,3 +771,26 @@ differed.
   `activity_gear` payload now clears it (once, on the transition).
 - Deleting a manual activity or a workout drops its rows/units/raw explicitly (the activity
   index and the workouts list don't see deletions of per-id children).
+
+## 22. M5b results (2026-10-19)
+
+- **`update_strava_activity`** (W-9, §8.4) is live when `STRAVA_CLIENT_ID` / `_SECRET` are set.
+  Strava-only plans run without a Garmin session (`Plan.garmin = False`), so a Garmin re-auth
+  doesn't block them. Only `{id, name, description}` of Strava's response is logged (the full
+  response carries maps and segment efforts).
+- **Auth:** `gds strava-auth` asks for the app credentials (secret hidden) if `.env` lacks them,
+  opens the consent page with a one-shot `127.0.0.1` callback, refuses partial scopes, and stores
+  the token encrypted (`strava_tokens`, its own AES-GCM associated data so a Garmin ciphertext
+  can't stand in for it). Granted scopes: `read,activity:write,activity:read_all`.
+- **Matching, as observed:** the Strava copy's `start_date` equals Garmin's UTC start to the
+  second. Strava's `external_id` for Garmin uploads is `garmin_ping_<upload id>`, **not** the Garmin
+  activity id, so ties prefer Garmin uploads, then an exact start; otherwise the tool refuses.
+- **Activity → planned workout:** `get_activity` carries `metadataDTO.associatedWorkoutId` and
+  `summaryDTO.directWorkoutComplianceScore`; now `activities.workout_id` / `workout_compliance`,
+  and `v_activities.workout_name` (current library name; a workout edited over time keeps one id,
+  e.g. "2x10" was once 6x3 and 4x5). Backfilled with `renormalize activity_summary` (172 rows).
+  This account starts workouts from the library on the watch rather than scheduling them, so the
+  calendar rarely has them; the workout id is the reliable link.
+- **Live test** (write 20 → undo 21): Strava activity of the 2026-10-14 "2x10" run retitled with a
+  description from its planned workout, read back from Strava, then restored to its previous title
+  ("2x10 threshold") and empty description.
