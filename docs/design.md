@@ -295,6 +295,15 @@ lowered to 5 min during backfill to roughly halve that.
 reset matching units to `pending` with top priority. The next tick (or the call
 itself, if short) processes them. The MCP tool `request_resync` does the same from Claude.
 
+**Sync now** (`sync_now` tool, `gds sync-now`): for "I just finished, fetch it". It queues
+`activity_index/recent`, the daily domains of the last `days` local days (default 1), and
+still-pending detail units of activities from the last 2 days, all at top priority. Then it
+runs a tick in the call with a **75 s budget**. A unit processed at manual priority passes that
+priority to the units its normaliser creates (`ensure_units(boost=…)`), so a new activity's
+summary, laps, zones and FIT come in the same run. Re-queued finished units keep their own
+priority. Calls closer than 60 s apart are refused. If another tick holds the lease, the units
+stay queued at top priority for it or for the next scheduled tick.
+
 ## 7. Garmin authentication & token broker
 
 ### 7.1 How tokens work (garminconnect ≥0.3)
@@ -364,6 +373,7 @@ All run as `gds_reader` and return compact JSON with units in field names (`_kg`
 | `get_entities(kind)` | Gear, devices, PRs, goals, workouts, calendar |
 | `describe_schema` / `query_sql(sql)` | Escape hatch: read-only SQL on views, 5 s timeout, 500-row cap |
 | `request_resync(domain?, start?, end?)` | Queue a manual re-sync (FR-9) |
+| `sync_now(days=1)` | Fetch the newest activities + the last `days` days now, in the call (§6.5) |
 
 ### 8.3 Write tools (§4.6 of requirements)
 
@@ -845,3 +855,19 @@ differed.
   tick and the worker login on production. A literal rehearsal needs a second Supabase project, a
   second Vercel project and a Garmin login, so it's left as a separate, owner-attended task.
 - Also fixed: `scripts/oauth_e2e.py` still expected 16 tools; it now accepts the M5 write tools (30).
+
+## 24. Sync now (2026-10-20)
+
+- New MCP tool **`sync_now(days=1)`** and CLI **`gds sync-now [--days N]`** (§6.5). They pull
+  fresh data on request instead of waiting for the 10-min tick or the 3-hourly incremental pass.
+  The tool returns `queued_units`, `fetched_units`, `failed_units`, `still_queued` (top-priority
+  units left over for the next tick) and the 3 newest stored activities, so Claude can tell
+  whether the new one arrived. The server instructions tell Claude to call it when the user has
+  just finished an activity.
+- `run_tick(trigger, budget_s=None)`: the budget can be set per call (the lease TTL follows it).
+- `store.ensure_units(..., boost=None)`: with a boost, new and still-pending units are raised to
+  that priority. Checked against production in a rolled-back transaction: new → 200, pending →
+  200, done without requeue → unchanged, done + requeue → pending at its own 9, and a backing-off
+  pending unit without a boost keeps its attempts.
+- Local run against production: 17 units queued (16 daily domains for today + the activity
+  index), all 17 fetched, 0 left queued.

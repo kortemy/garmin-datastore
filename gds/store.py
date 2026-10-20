@@ -114,8 +114,11 @@ def _adapt(v: Any) -> Any:
     return v
 
 
-def ensure_units(conn: psycopg.Connection, acct: uuid.UUID, units: list[dict[str, Any]]) -> int:
-    """Create work units a normaliser asked for; `requeue` ones are reset to pending."""
+def ensure_units(conn: psycopg.Connection, acct: uuid.UUID, units: list[dict[str, Any]],
+                 boost: int | None = None) -> int:
+    """Create work units a normaliser asked for; `requeue` ones are reset to pending.
+    With `boost` (a manual sync), new and still-pending units get at least that priority, so a
+    just-found activity is fetched in the same run; re-queued finished units keep their own."""
     if not units:
         return 0
     with conn.cursor() as cur:
@@ -123,10 +126,15 @@ def ensure_units(conn: psycopg.Connection, acct: uuid.UUID, units: list[dict[str
             """insert into garmin.work_units (account_id, domain, scope_key, priority)
                values (%s, %s, %s, %s)
                on conflict (account_id, domain, scope_key) do update
-                 set status = 'pending', priority = greatest(garmin.work_units.priority, excluded.priority),
-                     attempts = 0, next_attempt_at = now(), updated_at = now()
-                 where %s and garmin.work_units.status <> 'pending'""",
-            [(acct, u["domain"], u["scope_key"], u.get("priority", 10), bool(u.get("requeue"))) for u in units],
+                 set status = 'pending', attempts = 0, next_attempt_at = now(), updated_at = now(),
+                     priority = greatest(garmin.work_units.priority,
+                                         case when garmin.work_units.status = 'pending' then excluded.priority
+                                              else %s end)
+                 where (%s and garmin.work_units.status <> 'pending')
+                    or (%s and garmin.work_units.status = 'pending'
+                        and excluded.priority > garmin.work_units.priority)""",
+            [(acct, u["domain"], u["scope_key"], max(u.get("priority", 10), boost or 0), u.get("priority", 10),
+              bool(u.get("requeue")), boost is not None) for u in units],
         )
     return len(units)
 

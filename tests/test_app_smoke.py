@@ -16,7 +16,7 @@ MCP_HEADERS = {"Accept": "application/json, text/event-stream", "Content-Type": 
 EXPECTED_TOOLS = {
     "ping", "get_sync_status", "get_daily_wellness", "get_sleep", "get_intraday", "list_activities", "get_activity",
     "get_activity_streams", "get_trend", "get_body", "get_performance", "get_entities", "get_calendar",
-    "describe_schema", "query_sql", "request_resync", "get_write_log",
+    "describe_schema", "query_sql", "request_resync", "sync_now", "get_write_log",
 }
 WRITE_TOOLS = {
     "log_weight", "create_workout", "schedule_workout", "reschedule_workout", "unschedule_workout",
@@ -63,7 +63,7 @@ def test_legacy_connector_lists_all_tools(c, monkeypatch):
     tools = _rpc(c, "tools/list", id_=2)["result"]["tools"]
     assert {t["name"] for t in tools} == EXPECTED_TOOLS | WRITE_TOOLS
     by_name = {t["name"]: t for t in tools}
-    assert all(by_name[n]["annotations"]["readOnlyHint"] for n in EXPECTED_TOOLS - {"request_resync"})
+    assert all(by_name[n]["annotations"]["readOnlyHint"] for n in EXPECTED_TOOLS - {"request_resync", "sync_now"})
     for name in WRITE_TOOLS:
         t = by_name[name]
         assert t["annotations"]["readOnlyHint"] is False

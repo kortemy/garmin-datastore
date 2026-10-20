@@ -22,7 +22,7 @@ from gds import broker, store
 from gds.alerts import raise_alert
 from gds.config import settings
 from gds.db import connect
-from gds.domains import REGISTRY, daily_domains, domains_in
+from gds.domains import REGISTRY, activity_domains, daily_domains, domains_in
 from gds.source import AuthFailed, Blocked, RateLimited, Source, SourceError, Transient
 
 log = logging.getLogger(__name__)
@@ -188,12 +188,32 @@ def request_resync(
     ).rowcount
 
 
+def queue_fresh(conn: psycopg.Connection, acct: dict[str, Any], days: int = 1) -> int:
+    """Queue what changes when the athlete just finished something: the newest activity page
+    (new activities then get their details at the same priority), details of recent activities
+    still waiting from an earlier tick, and the daily data of the last `days` days."""
+    today = account_today(acct)
+    keys = [(today - dt.timedelta(days=i)).isoformat() for i in range(days)]
+    return conn.execute(
+        """update garmin.work_units
+           set status = 'pending', priority = %s, attempts = 0, next_attempt_at = now(), updated_at = now()
+           where account_id = %s
+             and ((domain = any(%s) and scope_key = any(%s))
+                  or (domain = 'activity_index' and scope_key = 'recent')
+                  or (domain = any(%s) and status = 'pending' and scope_key in (
+                        select activity_id::text from garmin.activities
+                        where account_id = %s and start_utc > now() - interval '2 days')))""",
+        (PRIORITY_MANUAL, acct["id"], [d.name for d in daily_domains()], keys,
+         [d.name for d in activity_domains()], acct["id"]),
+    ).rowcount
+
+
 # ---------------------------------------------------------------- units
 
 
 def _next_units(conn: psycopg.Connection, acct_id: uuid.UUID, limit: int = 25) -> list[dict[str, Any]]:
     return conn.execute(
-        """select domain, scope_key, attempts, content_hash from garmin.work_units
+        """select domain, scope_key, attempts, content_hash, priority from garmin.work_units
            where account_id = %s and status = 'pending' and next_attempt_at <= now()
            order by priority desc, scope_key desc
            limit %s""",
@@ -222,12 +242,12 @@ def _mark(conn: psycopg.Connection, acct_id: uuid.UUID, unit: dict[str, Any], st
     )
 
 
-def apply_rows(conn: psycopg.Connection, acct_id: uuid.UUID, rows: dict[str, Any]) -> int:
+def apply_rows(conn: psycopg.Connection, acct_id: uuid.UUID, rows: dict[str, Any], boost: int | None = None) -> int:
     """Write a normaliser's output: upserts, requested work units, then replace-scopes."""
     written = 0
     for table, table_rows in rows.items():
         if table == "work_units":
-            store.ensure_units(conn, acct_id, table_rows)
+            store.ensure_units(conn, acct_id, table_rows, boost)
         elif table != "_replace":
             written += store.upsert_rows(conn, acct_id, table, table_rows)
     for spec in rows.get("_replace", []):
@@ -285,7 +305,9 @@ def process_unit(conn: psycopg.Connection, src: Source, acct_id: uuid.UUID, unit
     with conn.transaction():
         if not domain.binary:  # binary payloads (FIT zips) are stored by their own table
             store.save_raw(conn, acct_id, unit["domain"], unit["scope_key"], data, digest)
-        apply_rows(conn, acct_id, rows)
+        # Units found by a manual sync (e.g. a new activity's details) run at manual priority too.
+        manual = unit.get("priority", 0) >= PRIORITY_MANUAL
+        apply_rows(conn, acct_id, rows, PRIORITY_MANUAL if manual else None)
         if normalize_error:
             # Raw is saved; keep the hash empty so a fixed normaliser reprocesses it.
             attempts = unit["attempts"] + 1
@@ -347,10 +369,11 @@ def _set_account_status(
     )
 
 
-def run_tick(trigger: str) -> dict[str, Any]:
+def run_tick(trigger: str, budget_s: float | None = None) -> dict[str, Any]:
     s = settings()
+    budget_s = budget_s or s.tick_budget_s
     started = time.monotonic()
-    deadline = started + s.tick_budget_s - SAFETY_MARGIN_S
+    deadline = started + budget_s - SAFETY_MARGIN_S
     holder = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
     stats = TickStats()
 
@@ -359,7 +382,7 @@ def run_tick(trigger: str) -> dict[str, Any]:
         if acct is None:
             return {"status": "skipped", "reason": f"no account '{s.account_label}'"}
         lease = f"tick:{acct['id']}"
-        if not acquire_lease(conn, lease, holder, s.tick_budget_s + 60):
+        if not acquire_lease(conn, lease, holder, budget_s + 60):
             return {"status": "skipped", "reason": "another tick is running"}
 
         run_id = conn.execute(
@@ -446,3 +469,59 @@ def run_tick(trigger: str) -> dict[str, Any]:
         "requests": src.requests if src else 0,
         **details,
     }
+
+
+# ---------------------------------------------------------------- sync now
+
+SYNC_NOW_TRIGGER = "mcp_sync_now"
+SYNC_NOW_BUDGET_S = 75  # short enough for a tool call; leftovers wait for the next scheduled tick
+SYNC_NOW_COOLDOWN_S = 60  # Claude retrying in a loop must not hammer Garmin
+
+
+def sync_now(days: int = 1) -> dict[str, Any]:
+    """Pull the newest activities and today's data from Garmin right away (the `sync_now` tool)."""
+    s = settings()
+    days = max(1, min(int(days), 7))
+    with connect() as conn:
+        acct = _load_account(conn, s.account_label)
+        if acct is None:
+            return {"status": "skipped", "reason": f"no account '{s.account_label}'"}
+        last = conn.execute(
+            """select extract(epoch from now() - started_at)::int as ago_s from garmin.sync_runs
+               where account_id = %s and trigger = %s and started_at > now() - make_interval(secs => %s)
+               order by started_at desc limit 1""",
+            (acct["id"], SYNC_NOW_TRIGGER, SYNC_NOW_COOLDOWN_S),
+        ).fetchone()
+        if last:
+            return {"status": "skipped",
+                    "reason": f"a sync_now ran {last['ago_s']} s ago; wait a minute before asking again"}
+        queued = queue_fresh(conn, acct, days)
+    tick = run_tick(SYNC_NOW_TRIGGER, SYNC_NOW_BUDGET_S)
+    with connect() as conn:
+        waiting = conn.execute(
+            """select count(*) as n from garmin.work_units
+               where account_id = %s and status = 'pending' and priority >= %s""",
+            (acct["id"], PRIORITY_MANUAL),
+        ).fetchone()["n"]
+        latest = conn.execute(
+            """select activity_id, name, type_key, start_local, round(duration_s / 60.0) as duration_min,
+                      round((distance_m / 1000.0)::numeric, 2)::float8 as distance_km
+               from garmin.activities where account_id = %s order by start_utc desc nulls last limit 3""",
+            (acct["id"],),
+        ).fetchall()
+    result: dict[str, Any] = {
+        "status": tick["status"],
+        "queued_units": queued,
+        "fetched_units": tick.get("done", 0) + tick.get("unchanged", 0) + tick.get("empty", 0),
+        "failed_units": tick.get("failed", 0),
+        "still_queued": waiting,
+        "latest_activities": latest,
+    }
+    if tick.get("reason"):  # another tick holds the lease
+        result["note"] = (f"{tick['reason']}: it, or the next scheduled tick (within 10 min), fetches the "
+                          "queued units first. Check list_activities in a minute or two.")
+    elif tick.get("error"):
+        result["error"] = tick["error"]
+    elif waiting:
+        result["note"] = "Not everything fit in this call; the next scheduled tick (within 10 min) fetches the rest."
+    return result

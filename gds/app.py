@@ -26,7 +26,8 @@ INSTRUCTIONS = (
     "Garmin Connect data (wellness, sleep, HRV, readiness, training load, activities with laps/zones/FIT "
     "streams, body measurements, performance metrics, gear, workouts, calendar) synced into a database "
     "every few hours. Call get_sync_status first and say plainly if data is missing or stale; never invent "
-    "numbers. Dates are the athlete's local calendar dates (YYYY-MM-DD). Units are in field names.\n"
+    "numbers. Dates are the athlete's local calendar dates (YYYY-MM-DD). Units are in field names. "
+    "If the user just finished an activity or wants today's data and it isn't there yet, call sync_now.\n"
     "Write tools change the athlete's Garmin account. Only write when asked. First call the tool with "
     "dry_run=true, show the user the returned preview word for word, and call again with dry_run=false only "
     "after they explicitly confirm. Give every distinct write a new idempotency_key (e.g. a UUID) and reuse it "
@@ -146,11 +147,22 @@ def build_server(**auth_kwargs: Any) -> MCPServer:
                                           openWorldHint=False))
     def request_resync(domain: str | None = None, start: str | None = None, end: str | None = None) -> dict:
         """Queue a re-sync from Garmin (optionally for one domain and/or a date range); the next sync tick,
-        within ~10 minutes, fetches it. Use when data looks stale or wrong."""
+        within ~10 minutes, fetches it. Use when older data looks stale or wrong; for "fetch my latest
+        activity / today's data now", use sync_now."""
         with connect() as conn:
             acct = conn.execute("select id from garmin.accounts where label = %s",
                                 (settings().account_label,)).fetchone()
             return {"queued_units": engine.request_resync(conn, acct["id"], domain, start, end)}
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True,
+                                          openWorldHint=True))
+    def sync_now(days: int = 1) -> dict[str, Any]:
+        """Pull fresh data from Garmin now instead of waiting for the scheduled sync: the newest
+        activities (with laps, zones, FIT streams) and the daily data of the last `days` days (1-7,
+        default today). Takes up to ~75 s. Use when the user just finished an activity or asks for
+        up-to-date numbers; then read with the usual tools. latest_activities shows what is stored now;
+        if the activity is missing, Garmin may not have it yet (the watch must sync first)."""
+        return engine.sync_now(days)
 
     _write_tools(mcp)
     return mcp

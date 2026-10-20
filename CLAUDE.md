@@ -37,12 +37,13 @@ through an OAuth MCP connector. Read `docs/requirements.md` (what/why) and `docs
 
 ```powershell
 $uv = "C:\Users\korte\AppData\Local\Programs\Python\Python310\Scripts\uv.exe"
-& $uv run --python 3.12 pytest -q                 # 168 tests, no network/DB
+& $uv run --python 3.12 pytest -q                 # 173 tests, no network/DB
 & $uv run --python 3.12 python -m gds.cli doctor   # checks the whole deployment (DB, Vault, cron, app, GitHub)
 & $uv run --python 3.12 python -m gds.cli migrate --dry-run   # pending migrations (matched by version or name)
 & $uv run --python 3.12 ruff check gds tests scripts
 & $uv run --python 3.12 python -m gds.cli tick     # one sync tick locally against the real DB
 & $uv run --python 3.12 python -m gds.cli call tick                 # tick on Vercel (reads secret from .env)
+& $uv run --python 3.12 python -m gds.cli sync-now                  # newest activities + today, right away (= sync_now tool)
 & $uv run --python 3.12 python -m gds.cli renormalize <domain> ...  # rebuild typed rows from stored raw
 & $uv run --python 3.12 python scripts/oauth_e2e.py  # 19-check OAuth flow, local app vs real DB, self-cleaning
 $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')

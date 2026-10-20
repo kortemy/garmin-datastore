@@ -152,6 +152,7 @@ your deployment's domain), then run `gds strava-auth`, `gds setup`, and deploy.
 |---|---|
 | Alert email "needs re-authentication" | `gds auth`. The next tick picks up the new token. |
 | Something looks off | `gds doctor`; the Claude connector's `get_sync_status` shows the same health |
+| Just finished an activity | Ask Claude to sync now (`sync_now`), or `gds sync-now` |
 | Re-fetch some data | `gds call sync --body '{"domain": "sleep", "start": "2026-01-01", "end": "2026-01-31"}'`, or ask Claude (`request_resync`) |
 | Test the alert emails | `gds call alerts/test` (from the app) and, in the Supabase SQL editor, `select garmin.watchdog(true);` (from the database) |
 | Update to a newer version | `git pull`, `gds migrate`, `vercel deploy --prod`, `gds doctor` |

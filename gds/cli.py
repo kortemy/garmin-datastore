@@ -6,6 +6,7 @@
     uv run python -m gds.cli doctor   # check every part of the deployment
     uv run python -m gds.cli strava-auth  # optional: one-time Strava authorization (W-9)
     uv run python -m gds.cli tick             # one sync tick on this machine
+    uv run python -m gds.cli sync-now         # fetch the newest activities + today's data right away
     uv run python -m gds.cli call tick        # POST to the deployed app (GDS_BASE_URL)
     uv run python -m gds.cli connector-url    # Claude connector URL (OAuth)
 
@@ -417,6 +418,18 @@ def cmd_tick(args: argparse.Namespace) -> None:
     print(json.dumps(engine.run_tick(trigger=args.trigger), indent=2, default=str))
 
 
+def cmd_sync_now(args: argparse.Namespace) -> None:
+    """Same as the connector's sync_now tool: newest activities + the last N days, right away."""
+    import json
+    import logging
+
+    logging.basicConfig(level=logging.INFO)
+    load_env_into_process()
+    from gds import engine
+
+    print(json.dumps(engine.sync_now(args.days), indent=2, default=str))
+
+
 def cmd_renormalize(args: argparse.Namespace) -> None:
     """Rebuild typed rows for domains from stored raw payloads (no Garmin calls)."""
     load_env_into_process()
@@ -468,6 +481,9 @@ def main() -> None:
     p_tick = sub.add_parser("tick", help="run one sync tick locally")
     p_tick.add_argument("--trigger", default="local_cli")
     p_tick.set_defaults(func=cmd_tick)
+    p_now = sub.add_parser("sync-now", help="fetch the newest activities and today's data now (locally)")
+    p_now.add_argument("--days", type=int, default=1, help="daily data for the last N days (1-7)")
+    p_now.set_defaults(func=cmd_sync_now)
     p_ren = sub.add_parser("renormalize", help="rebuild typed rows from stored raw payloads")
     p_ren.add_argument("domains", nargs="+")
     p_ren.set_defaults(func=cmd_renormalize)
